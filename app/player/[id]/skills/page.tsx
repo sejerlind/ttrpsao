@@ -6,7 +6,7 @@ import styled, { ThemeProvider } from 'styled-components';
 import { theme } from '../theme';
 import { supabase, type DatabaseCharacter } from '../../../../lib/supabase';
 import TechTree from '../../../../components/player/TechTree';
-import { PlayerProgression, SkillTreeType } from '../../../../components/types';
+import { PlayerProgression, SkillTreeType, SkillNode } from '../../../../components/types'; // Adjusted path
 
 const Container = styled.div`
   min-height: 100vh;
@@ -204,6 +204,7 @@ export default function SkillsPage() {
   const router = useRouter();
   const [character, setCharacter] = useState<DatabaseCharacter | null>(null);
   const [playerProgression, setPlayerProgression] = useState<PlayerProgression | null>(null);
+  const [loadedSkills, setLoadedSkills] = useState<SkillNode[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -245,25 +246,107 @@ export default function SkillsPage() {
 
       // Try to fetch character from database
       try {
-        const { data, error: supabaseError } = await supabase
+        const { data: characterData, error: characterError } = await supabase
           .from('characters')
           .select('*')
           .eq('id', params.id)
           .single();
 
-        if (supabaseError) {
-          console.log('Database error occurred, using fallback data:', supabaseError.message || 'Unknown error');
-          throw new Error(`Database error: ${supabaseError.message || 'Unknown error'}`);
+        if (characterError) {
+          console.log('Database error occurred, using fallback data:', characterError.message || 'Unknown error');
+          throw new Error(`Database error: ${characterError.message || 'Unknown error'}`);
         }
 
-        if (!data) {
+        if (!characterData) {
           console.log('Character not found in database, using sample data');
           throw new Error('Character not found');
         }
 
+        // Load skills from database
+        const { data: skillsData, error: skillsError } = await supabase
+          .from('skills')
+          .select('*')
+          .order('skill_tree, tier, position_x, position_y');
+
+        // Load character's skill progression
+        const { data: characterSkillsData, error: characterSkillsError } = await supabase
+          .from('character_skills')
+          .select('*')
+          .eq('character_id', params.id);
+
+        // Load player progression
+        const { data: progressionData, error: progressionError } = await supabase
+          .from('player_progression')
+          .select('*')
+          .eq('character_id', params.id)
+          .single();
+
+        if (skillsError || characterSkillsError || progressionError) {
+          console.log('Error loading skill data, using sample progression');
+        }
+
         // Successfully loaded from database
-        setCharacter(data);
-        setPlayerProgression(createSampleProgression(data.level));
+        setCharacter(characterData);
+        
+        // Create progression data from database or fallback to sample
+        let progression: PlayerProgression;
+        
+        if (skillsData && !skillsError) {
+          // Map database skills to our skill format and merge with character progression
+          const characterSkillsMap = new Map(
+            (characterSkillsData || []).map(cs => [cs.skill_id, cs])
+          );
+
+          const mappedSkills = skillsData.map(skill => ({
+            id: skill.id,
+            name: skill.name,
+            description: skill.description || '',
+            icon: skill.icon || '⚔️',
+            tier: skill.tier,
+            position: { x: skill.position_x, y: skill.position_y },
+            skillTree: skill.skill_tree as any,
+            prerequisites: skill.prerequisites || [],
+            cost: {
+              skillPoints: skill.cost_skill_points,
+              level: skill.cost_level,
+              ...(skill.cost_gold > 0 && { gold: skill.cost_gold })
+            },
+            maxRank: skill.max_rank,
+            currentRank: characterSkillsMap.get(skill.id)?.current_rank || 0,
+            isUnlocked: characterSkillsMap.get(skill.id)?.is_unlocked || false,
+            isMaxed: (characterSkillsMap.get(skill.id)?.current_rank || 0) >= skill.max_rank,
+            category: skill.category as any,
+            effects: skill.effects || []
+          }));
+
+          progression = {
+            totalLevel: progressionData?.total_level || characterData.level,
+            skillPoints: progressionData?.skill_points || Math.floor(characterData.level * 2),
+            unspentSkillPoints: progressionData?.unspent_skill_points || Math.floor(characterData.level * 0.2),
+            talentPoints: progressionData?.talent_points || Math.floor(characterData.level / 2),
+            unspentTalentPoints: progressionData?.unspent_talent_points || Math.floor(characterData.level * 0.1),
+            skillTrees: {
+              [SkillTreeType.COMBAT]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+              [SkillTreeType.MAGIC]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+              [SkillTreeType.CRAFTING]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+              [SkillTreeType.EXPLORATION]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+              [SkillTreeType.SOCIAL]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+              [SkillTreeType.DEFENSIVE]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 }
+            },
+            unlockedSkills: mappedSkills.filter(s => s.isUnlocked).map(s => s.id),
+            masteryLevels: {}
+          };
+
+          // Update the TechTree component to use the mapped skills
+          // We'll need to pass the skills data to the component
+          console.log('Loaded skills from database:', mappedSkills.length, 'skills');
+          setLoadedSkills(mappedSkills);
+        } else {
+          // Fallback to sample progression
+          progression = createSampleProgression(characterData.level);
+        }
+        
+        setPlayerProgression(progression);
         
       } catch (dbError) {
         console.log('Database operation failed, using sample character data');
@@ -398,6 +481,7 @@ export default function SkillsPage() {
           playerProgression={playerProgression}
           onSkillUpgrade={handleSkillUpgrade}
           onSkillPreview={handleSkillPreview}
+          skills={loadedSkills || undefined}
         />
       </Container>
     </ThemeProvider>

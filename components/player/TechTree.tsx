@@ -13,6 +13,7 @@ import {
 
 interface TechTreeProps {
   playerProgression: PlayerProgression;
+  skills?: SkillNode[]; // Optional skills data from database
   onSkillUpgrade: (skillId: string) => void;
   onSkillPreview: (skill: SkillNode | null) => void;
 }
@@ -610,9 +611,9 @@ const sampleSkillTrees: SkillNode[] = [
   }
 ];
 
-export default function TechTree({ playerProgression, onSkillUpgrade, onSkillPreview }: TechTreeProps) {
+export default function TechTree({ playerProgression, skills: propSkills, onSkillUpgrade, onSkillPreview }: TechTreeProps) {
   const [activeFilter, setActiveFilter] = useState<SkillTreeType | 'all'>('all');
-  const [skills] = useState<SkillNode[]>(sampleSkillTrees);
+  const [skills] = useState<SkillNode[]>(propSkills || sampleSkillTrees);
   const [hoveredSkill, setHoveredSkill] = useState<SkillNode | null>(null);
 
   const filteredSkills = skills.filter(skill => 
