@@ -107,6 +107,37 @@ const PageTitle = styled.h1`
   }
 `;
 
+const SkillsButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing.sm};
+  background: ${props => props.theme.colors.accent.cyan};
+  color: ${props => props.theme.colors.primary.bg};
+  border: none;
+  border-radius: ${props => props.theme.borderRadius.medium};
+  padding: ${props => props.theme.spacing.md} ${props => props.theme.spacing.lg};
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${props => props.theme.colors.accent.blue};
+    transform: translateY(-2px);
+    box-shadow: ${props => props.theme.shadows.card};
+  }
+
+  &::before {
+    content: '🌟';
+    font-size: 1.2rem;
+  }
+
+  @media (max-width: ${props => props.theme.breakpoints.mobile}) {
+    padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.md};
+    font-size: 0.85rem;
+  }
+`;
+
 const MainContent = styled.div`
   display: grid;
   grid-template-columns: 1fr 380px;
@@ -844,6 +875,9 @@ export default function PlayerPage() {
             Back
           </BackButton>
           <PageTitle>Player: {character.name}</PageTitle>
+          <SkillsButton onClick={() => router.push(`/player/${params.id}/skills`)}>
+            Skills
+          </SkillsButton>
         </PageHeader>
         
         <CharacterHeader character={character} resources={resources} />
