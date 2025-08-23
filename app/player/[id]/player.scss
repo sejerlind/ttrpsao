@@ -1,0 +1,391 @@
+// SCSS Variables
+$primary-bg: #f5f1e8;
+$secondary-bg: #e8dcc0;
+$accent-brown: #8b7355;
+$accent-light: #a0896b;
+$accent-dark: #6b5b47;
+$text-dark: #2c1810;
+$text-medium: #4a3728;
+$text-light: #5a4635;
+$white: #ffffff;
+$paper: #faf7f0;
+$border-light: #d4c4a8;
+$red-gradient-start: #c44536;
+$red-gradient-end: #d4574a;
+
+// SCSS Mixins
+@mixin gradient-bg($start, $end) {
+  background: linear-gradient(145deg, $start, $end);
+}
+
+@mixin card-shadow($opacity: 0.1) {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, $opacity);
+}
+
+@mixin border-style($color: $accent-brown) {
+  border: 2px solid $color;
+  border-radius: 12px;
+}
+
+@mixin input-style {
+  padding: 12px;
+  border: 2px solid $accent-light;
+  border-radius: 8px;
+  background: $white;
+  font-size: 1rem;
+  color: $text-dark;
+  transition: all 0.3s ease;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: $accent-brown;
+    box-shadow: 0 0 10px rgba(139, 115, 85, 0.3);
+    background: #fefefe;
+  }
+}
+
+@mixin section-header {
+  margin: 0 0 20px 0;
+  font-size: 1.8rem;
+  color: $text-medium;
+  border-bottom: 3px solid $accent-brown;
+  padding-bottom: 10px;
+  text-align: center;
+  font-weight: bold;
+}
+
+// Global styles for the character sheet
+.character-sheet-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, $primary-bg 0%, $secondary-bg 100%);
+  font-family: 'Georgia', 'Times New Roman', serif;
+  color: $text-dark;
+  padding: 20px;
+
+  .sheet-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    @include gradient-bg($accent-brown, $accent-light);
+    border-radius: 15px;
+    @include card-shadow(0.15);
+    border: 3px solid $accent-dark;
+
+    h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      color: $primary-bg;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+  }
+
+  .sheet-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    gap: 25px;
+    grid-template-columns: 1fr;
+  }
+
+  // Section styling
+  .section {
+    background: $paper;
+    @include border-style;
+    padding: 20px;
+    @include card-shadow;
+    position: relative;
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: -2px;
+      left: -2px;
+      right: -2px;
+      bottom: -2px;
+      background: linear-gradient(45deg, $accent-brown, $accent-light, $accent-brown);
+      border-radius: 12px;
+      z-index: -1;
+    }
+
+    h2 {
+      @include section-header;
+    }
+
+    h3 {
+      margin: 20px 0 15px 0;
+      font-size: 1.3rem;
+      color: $text-light;
+      border-bottom: 2px solid $accent-light;
+      padding-bottom: 5px;
+    }
+  }
+
+  // Grid layouts
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+  }
+
+  .combat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+  }
+
+  .hp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+  }
+
+  .equipment-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+  }
+
+  .skills-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 30px;
+  }
+
+  // Input group styling
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+
+    label {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: $text-medium;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    input, textarea {
+      @include input-style;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+
+    .unit {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: $accent-dark;
+      font-weight: bold;
+      pointer-events: none;
+    }
+  }
+
+  // Stat blocks
+  .stat-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    @include gradient-bg($white, $primary-bg);
+    @include border-style($accent-light);
+    @include card-shadow;
+    transition: transform 0.2s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      @include card-shadow(0.15);
+    }
+
+    label {
+      font-weight: bold;
+      margin-bottom: 8px;
+      color: $text-medium;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    input {
+      width: 60px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+      border: 2px solid $accent-brown;
+      border-radius: 6px;
+      padding: 8px;
+    }
+
+    .modifier {
+      background: $accent-brown;
+      color: $white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      min-width: 40px;
+      text-align: center;
+    }
+  }
+
+  // Hit points section
+  .hit-points {
+    margin-top: 25px;
+    padding: 20px;
+    @include gradient-bg(#f0ede6, $secondary-bg);
+    border-radius: 10px;
+    border: 2px solid $accent-light;
+  }
+
+  // Attacks section
+  .attacks-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .attack-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1.5fr 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      @include gradient-bg($white, $primary-bg);
+      border-radius: 8px;
+      border: 1px solid $accent-light;
+
+      input {
+        padding: 8px;
+        border: 1px solid $accent-light;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+    }
+
+    .add-button {
+      @include gradient-bg($accent-brown, $accent-light);
+      color: $white;
+      margin-top: 15px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 115, 85, 0.3);
+      }
+    }
+
+    .remove-button {
+      @include gradient-bg($red-gradient-start, $red-gradient-end);
+      color: $white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      line-height: 1;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+
+      &:hover:not(:disabled) {
+        @include gradient-bg(#b63c2e, $red-gradient-start);
+        transform: scale(1.1);
+      }
+
+      &:disabled {
+        background: #cccccc;
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+
+  // Skills and saves
+  .saves-list, .skill-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .save-row, .skill-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    @include gradient-bg($white, $primary-bg);
+    border-radius: 6px;
+    border: 1px solid $border-light;
+    transition: background 0.2s ease;
+
+    &:hover {
+      @include gradient-bg($primary-bg, #ede4d3);
+    }
+
+    input {
+      margin-right: 10px;
+      transform: scale(1.2);
+    }
+
+    label {
+      font-size: 0.9rem;
+      color: $text-medium;
+      cursor: pointer;
+      flex: 1;
+    }
+  }
+
+  // Responsive design
+  @media (max-width: 768px) {
+    padding: 10px;
+
+    .sheet-header h1 {
+      font-size: 2rem;
+    }
+
+    .info-grid, .stats-grid, .combat-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .skills-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .attacks-container .attack-row {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .equipment-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .hp-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+} 
