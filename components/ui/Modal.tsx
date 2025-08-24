@@ -1,5 +1,4 @@
 import styled from 'styled-components';
-import Button from './Button';
 
 interface ModalProps {
   isOpen: boolean;

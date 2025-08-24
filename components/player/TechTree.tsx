@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { 
   SkillNode, 
   SkillTreeType, 
   SkillCategory, 
-  TechTreeState, 
   PlayerProgression,
-  SkillEffect 
 } from '../types';
 
 interface TechTreeProps {
@@ -614,7 +612,6 @@ const sampleSkillTrees: SkillNode[] = [
 export default function TechTree({ playerProgression, skills: propSkills, onSkillUpgrade, onSkillPreview }: TechTreeProps) {
   const [activeFilter, setActiveFilter] = useState<SkillTreeType | 'all'>('all');
   const [skills] = useState<SkillNode[]>(propSkills || sampleSkillTrees);
-  const [hoveredSkill, setHoveredSkill] = useState<SkillNode | null>(null);
 
   const filteredSkills = skills.filter(skill => 
     activeFilter === 'all' || skill.skillTree === activeFilter
@@ -702,14 +699,8 @@ export default function TechTree({ playerProgression, skills: propSkills, onSkil
             $canUpgrade={canUpgradeSkill(skill)}
             $position={skill.position}
             onClick={() => canUpgradeSkill(skill) && onSkillUpgrade(skill.id)}
-            onMouseEnter={() => {
-              setHoveredSkill(skill);
-              onSkillPreview(skill);
-            }}
-            onMouseLeave={() => {
-              setHoveredSkill(null);
-              onSkillPreview(null);
-            }}
+            onMouseEnter={() => onSkillPreview(skill)}
+            onMouseLeave={() => onSkillPreview(null)}
           >
             {skill.icon}
             <div className="tier-indicator">{skill.tier}</div>

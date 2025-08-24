@@ -91,7 +91,7 @@ const ActionPointsDisplay = styled.div`
   .ap-value {
     font-size: 2rem;
     font-weight: bold;
-    color: ${props => props.theme.colors.accent.primary};
+    color: ${props => props.theme.colors.accent.cyan};
   }
 
   .ap-max {
