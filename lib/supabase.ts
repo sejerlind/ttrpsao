@@ -59,7 +59,7 @@ export interface DatabaseCharacter {
 export interface Database {
   public: {
     Tables: {
-      abilities: {
+      Abilities: {
         Row: DatabaseAbility
         Insert: Omit<DatabaseAbility, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<DatabaseAbility, 'id' | 'created_at' | 'updated_at'>>

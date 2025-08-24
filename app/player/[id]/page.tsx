@@ -654,10 +654,69 @@ export default function PlayerPage() {
       }
 
       // Load abilities specific to this player through the junction table
+      console.log('Loading abilities for character:', playerId);
+      
+      // Since foreign key relationship might not be set up properly, use direct approach
+      console.log('Using direct approach to load abilities...');
+      
+      // Get character ability IDs first
+      const { data: charAbilities, error: charError } = await supabase
+        .from('character_abilities')
+        .select('ability_id, is_equipped, slot_position')
+        .eq('character_id', playerId);
+        
+      if (charError) {
+        console.error('Error loading character abilities:', charError);
+        setAbilities([]);
+        return;
+      }
+      
+      if (!charAbilities || charAbilities.length === 0) {
+        console.log('No abilities found for this character');
+        setAbilities([]);
+        return;
+      }
+      
+      console.log('Character ability IDs:', charAbilities.map(ca => ca.ability_id));
+      
+      // Get the actual abilities
+      const { data: abilitiesData, error: abilitiesError } = await supabase
+        .from('Abilities')
+        .select('*')
+        .in('id', charAbilities.map(ca => ca.ability_id));
+        
+      if (abilitiesError) {
+        console.error('Error loading abilities:', abilitiesError);
+        setAbilities([]);
+        return;
+      }
+      
+      console.log('Abilities data:', abilitiesData);
+      
+      const playerAbilities = abilitiesData?.map((dbAbility: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+        id: dbAbility.id,
+        name: dbAbility.name,
+        description: dbAbility.description,
+        category: dbAbility.category,
+        cooldownMax: dbAbility.cooldown_max,
+        currentCooldown: dbAbility.current_cooldown || 0,
+        damage: dbAbility.damage || undefined,
+        manaCost: dbAbility.mana_cost || undefined,
+        effects: dbAbility.effects || []
+      })) || [];
+      
+      console.log(`✅ Loaded ${playerAbilities.length} abilities for player ${playerId}`);
+      setAbilities(playerAbilities);
+
+      // OLD JOIN APPROACH (commented out due to foreign key issues)
+      /*
       const { data, error } = await supabase
-        .from('player_abilities')
+        .from('character_abilities')
         .select(`
-          abilities (
+          ability_id,
+          is_equipped,
+          slot_position,
+          Abilities!inner (
             id,
             name,
             description,
@@ -670,32 +729,22 @@ export default function PlayerPage() {
             icon
           )
         `)
-        .eq('player_id', playerId);
+        .eq('character_id', playerId);
 
       if (error) {
         console.error('Error loading player abilities:', error);
+        console.error('Error details:', JSON.stringify(error, null, 2));
         setAbilities([]);
         return;
       }
 
-      // Transform the nested data structure to flat abilities array
-      const playerAbilities = data
-        ?.map(item => item.abilities)
-        .filter(ability => ability !== null) // Filter out any null abilities
-        .map((dbAbility: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
-          id: dbAbility.id,
-          name: dbAbility.name,
-          description: dbAbility.description,
-          category: dbAbility.category,
-          cooldownMax: dbAbility.cooldown_max,
-          currentCooldown: dbAbility.current_cooldown || 0,
-          damage: dbAbility.damage || undefined,
-          manaCost: dbAbility.mana_cost || undefined,
-          effects: dbAbility.effects || []
-        })) || [];
+      console.log('Raw abilities data:', data);
 
-      console.log(`✅ Loaded ${playerAbilities.length} abilities for player ${playerId}`);
-      setAbilities(playerAbilities);
+      // If the join query failed or returned no data, try a simpler approach
+      if (!data || data.length === 0) {
+        // This code is now redundant since we're using direct approach above
+      }
+      */
     } catch (error) {
       console.error('Failed to load player abilities:', error);
       setAbilities([]);
