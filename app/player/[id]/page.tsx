@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import styled, { ThemeProvider } from 'styled-components';
 import './player.scss';
 import { theme } from './theme';
-import { supabase, type DatabaseAbility, type DatabaseCharacter } from '../../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 // Import new components
 import Modal from '../../../components/ui/Modal';
@@ -577,7 +577,7 @@ export default function PlayerPage() {
   const [floatingTexts, setFloatingTexts] = useState<FloatingTextItem[]>([]);
 
   // Load character data from Supabase
-  const loadCharacter = async () => {
+  const loadCharacter = useCallback(async () => {
     try {
       setIsLoadingCharacter(true);
       setCharacterError(null);
@@ -634,10 +634,10 @@ export default function PlayerPage() {
     } finally {
       setIsLoadingCharacter(false);
     }
-  };
+  }, [playerId]);
 
   // Load abilities from Supabase for specific player
-  const loadAbilities = async () => {
+  const loadAbilities = useCallback(async () => {
     try {
       setIsLoadingAbilities(true);
       
@@ -682,7 +682,7 @@ export default function PlayerPage() {
       const playerAbilities = data
         ?.map(item => item.abilities)
         .filter(ability => ability !== null) // Filter out any null abilities
-        .map((dbAbility: any) => ({
+        .map((dbAbility: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
           id: dbAbility.id,
           name: dbAbility.name,
           description: dbAbility.description,
@@ -702,7 +702,7 @@ export default function PlayerPage() {
     } finally {
       setIsLoadingAbilities(false);
     }
-  };
+  }, [playerId]);
 
   // Load character and abilities on component mount or when playerId changes
   useEffect(() => {
@@ -710,7 +710,7 @@ export default function PlayerPage() {
       loadCharacter();
       loadAbilities();
     }
-  }, [playerId]);
+  }, [playerId, loadAbilities, loadCharacter]);
 
   // Auto-update cooldowns
   useEffect(() => {

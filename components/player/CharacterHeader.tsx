@@ -48,7 +48,7 @@ const PortraitContainer = styled.div`
     top: -10px;
     right: -10px;
     background: ${props => props.theme.gradients.accent};
-    border: 2px solid ${props => props.theme.colors.accent.primary};
+    border: 2px solid ${props => props.theme.colors.accent.cyan};
     border-radius: ${props => props.theme.borderRadius.pill};
     padding: 4px 12px;
     font-size: 14px;
@@ -61,7 +61,7 @@ const CharacterInfo = styled.div`
   h1 {
     margin: 0 0 ${props => props.theme.spacing.sm} 0;
     font-size: 2.5rem;
-    background: ${props => props.theme.gradients.text};
+    background: ${props => props.theme.gradients.accent};
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

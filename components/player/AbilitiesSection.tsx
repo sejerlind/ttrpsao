@@ -167,7 +167,7 @@ export default function AbilitiesSection({
           <CategorySection key={category}>
             <CategoryHeader>{category.charAt(0).toUpperCase() + category.slice(1)} Actions</CategoryHeader>
             <AbilitiesGrid>
-              {categoryAbilities.map(ability => (
+              {categoryAbilities.map((ability: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
                 <AbilityCard
                   key={ability.id}
                   ability={ability}

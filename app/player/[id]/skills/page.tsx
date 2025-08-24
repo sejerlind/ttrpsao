@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import styled, { ThemeProvider } from 'styled-components';
 import { theme } from '../theme';
 import { supabase, type DatabaseCharacter } from '../../../../lib/supabase';
 import TechTree from '../../../../components/player/TechTree';
-import { PlayerProgression, SkillTreeType, SkillNode } from '../../../../components/types'; // Adjusted path
+import { PlayerProgression, SkillTreeType, SkillNode, SkillCategory } from '../../../../components/types'; // Adjusted path
 
 const Container = styled.div`
   min-height: 100vh;
@@ -208,7 +208,7 @@ export default function SkillsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadCharacter = async () => {
+  const loadCharacter = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -304,7 +304,7 @@ export default function SkillsPage() {
             icon: skill.icon || '⚔️',
             tier: skill.tier,
             position: { x: skill.position_x, y: skill.position_y },
-            skillTree: skill.skill_tree as any,
+            skillTree: skill.skill_tree as SkillTreeType,
             prerequisites: skill.prerequisites || [],
             cost: {
               skillPoints: skill.cost_skill_points,
@@ -315,7 +315,7 @@ export default function SkillsPage() {
             currentRank: characterSkillsMap.get(skill.id)?.current_rank || 0,
             isUnlocked: characterSkillsMap.get(skill.id)?.is_unlocked || false,
             isMaxed: (characterSkillsMap.get(skill.id)?.current_rank || 0) >= skill.max_rank,
-            category: skill.category as any,
+            category: skill.category as SkillCategory,
             effects: skill.effects || []
           }));
 
@@ -340,7 +340,7 @@ export default function SkillsPage() {
           // Update the TechTree component to use the mapped skills
           // We'll need to pass the skills data to the component
           console.log('Loaded skills from database:', mappedSkills.length, 'skills');
-          setLoadedSkills(mappedSkills);
+          setLoadedSkills(mappedSkills as SkillNode[]);
         } else {
           // Fallback to sample progression
           progression = createSampleProgression(characterData.level);
@@ -348,7 +348,7 @@ export default function SkillsPage() {
         
         setPlayerProgression(progression);
         
-      } catch (dbError) {
+      } catch {
         console.log('Database operation failed, using sample character data');
         
         // Use sample character data as fallback
@@ -377,7 +377,7 @@ export default function SkillsPage() {
         setPlayerProgression(createSampleProgression(fallbackCharacter.level));
       }
 
-    } catch (error) {
+    } catch {
       console.log('Unexpected error, using final fallback character data');
       
       // Final fallback - ensure we always have a character
@@ -407,13 +407,13 @@ export default function SkillsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [params.id]);
 
   useEffect(() => {
     if (params.id) {
       loadCharacter();
     }
-  }, [params.id]);
+  }, [params.id, loadCharacter]);
 
   const handleSkillUpgrade = (skillId: string) => {
     console.log('Upgrading skill:', skillId);
@@ -433,7 +433,7 @@ export default function SkillsPage() {
     }
   };
 
-  const handleSkillPreview = (skill: any) => {
+  const handleSkillPreview = (skill: SkillNode | null) => {
     console.log('Previewing skill:', skill);
     // Here you could show additional information about the skill
     // in a side panel or update some state for skill comparison
