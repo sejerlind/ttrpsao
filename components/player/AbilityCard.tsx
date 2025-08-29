@@ -205,10 +205,10 @@ const getAbilityIcon = (ability: Ability): string => {
   }
 };
 
-const formatCooldown = (seconds: number): string => {
-  if (seconds === 0) return 'Ready';
-  if (seconds < 60) return `${seconds}s`;
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+const formatCooldown = (turns: number): string => {
+  if (turns === 0) return 'Ready';
+  if (turns === 1) return '1 turn';
+  return `${turns} turns`;
 };
 
 export default function AbilityCard({ ability, isRecentlyUsed, onClick }: AbilityCardProps) {
@@ -246,7 +246,7 @@ export default function AbilityCard({ ability, isRecentlyUsed, onClick }: Abilit
         )}
         <div className="stat">
           <div className="stat-label">CD</div>
-          <div className="stat-value">{ability.cooldownMax}s</div>
+          <div className="stat-value">{ability.cooldownMax} {ability.cooldownMax === 1 ? 'turn' : 'turns'}</div>
         </div>
       </AbilityStats>
     </CardContainer>

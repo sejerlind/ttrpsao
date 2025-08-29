@@ -49,11 +49,35 @@ export interface DatabaseCharacter {
   action_points_current: number
   action_points_max: number
   armor_current: number
-  armor_max: number
   magic_resist_current: number
-  magic_resist_max: number
   created_at?: string
   updated_at?: string
+}
+
+export interface GameSessionRow {
+  id: string
+  name: string
+  description: string | null
+  gm_name: string
+  status: string
+  created_at: string
+  started_at: string | null
+  ended_at: string | null
+  updated_at: string
+}
+
+export interface AbilityUsageLogRow {
+  id: string
+  game_session_id: string
+  character_id: string
+  ability_id: string
+  used_at: string
+  effect_description: string | null
+  damage_dealt: string | null
+  mana_cost_paid: number
+  action_points_used: number
+  target_description: string | null
+  notes: string | null
 }
 
 export interface Database {
@@ -68,6 +92,16 @@ export interface Database {
         Row: DatabaseCharacter
         Insert: Omit<DatabaseCharacter, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<DatabaseCharacter, 'id' | 'created_at' | 'updated_at'>>
+      }
+      game_sessions: {
+        Row: GameSessionRow
+        Insert: Omit<GameSessionRow, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<GameSessionRow, 'id' | 'created_at'>>
+      }
+      ability_usage_log: {
+        Row: AbilityUsageLogRow
+        Insert: Omit<AbilityUsageLogRow, 'id' | 'used_at'>
+        Update: Partial<Omit<AbilityUsageLogRow, 'id' | 'used_at'>>
       }
     }
   }

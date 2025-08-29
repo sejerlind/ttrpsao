@@ -3,7 +3,7 @@ import styled from 'styled-components';
 interface ResourceBarProps {
   name: string;
   current: number;
-  max: number;
+  max?: number;
   type: 'health' | 'mana' | 'stamina' | 'armor' | 'magic-resist';
 }
 
@@ -63,20 +63,34 @@ const getResourcePercentage = (current: number, max: number): number => {
 };
 
 export default function ResourceBar({ name, current, max, type }: ResourceBarProps) {
+  const isProgressBar = max !== undefined;
+  
   return (
     <BarContainer>
       <div className="resource-header">
         <span className="resource-name">{name}</span>
         <span className="resource-values">
-          {current} / {max}
+          {isProgressBar ? `${current} / ${max}` : current}
         </span>
       </div>
-      <ProgressBar $type={type}>
-        <div 
-          className="resource-fill"
-          style={{ width: `${getResourcePercentage(current, max)}%` }}
-        />
-      </ProgressBar>
+      {isProgressBar ? (
+        <ProgressBar $type={type}>
+          <div 
+            className="resource-fill"
+            style={{ width: `${getResourcePercentage(current, max)}%` }}
+          />
+        </ProgressBar>
+      ) : (
+        <div style={{ 
+          textAlign: 'center', 
+          padding: '10px', 
+          fontSize: '1.1rem', 
+          fontWeight: 'bold',
+          color: type === 'armor' ? '#f59e0b' : '#8b5fd6'
+        }}>
+          {current}
+        </div>
+      )}
     </BarContainer>
   );
 } 

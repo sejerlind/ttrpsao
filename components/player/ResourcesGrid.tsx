@@ -5,8 +5,8 @@ interface Resources {
   health: { current: number; max: number };
   mana: { current: number; max: number };
   stamina: { current: number; max: number };
-  armor: { current: number; max: number };
-  magicResist: { current: number; max: number };
+  armor: { current: number };
+  magicResist: { current: number };
 }
 
 interface ResourcesGridProps {
@@ -44,13 +44,11 @@ export default function ResourcesGrid({ resources }: ResourcesGridProps) {
       <ResourceBar
         name="Armor"
         current={resources.armor.current}
-        max={resources.armor.max}
         type="armor"
       />
       <ResourceBar
         name="Magic Resist"
         current={resources.magicResist.current}
-        max={resources.magicResist.max}
         type="magic-resist"
       />
     </GridContainer>

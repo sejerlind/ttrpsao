@@ -1459,12 +1459,12 @@ export default function PlayersPage() {
                         <div className="resource">
                           <div className="resource-header">
                             <span className="label">Armor</span>
-                            <span className="value">{player.armor_current}/{player.armor_max}</span>
+                            <span className="value">{player.armor_current}</span>
                           </div>
                           <div className="resource-bar">
                             <div 
                               className="resource-fill armor"
-                              style={{ width: `${(player.armor_current / player.armor_max) * 100}%` }}
+                              style={{ width: `100%` }}
                             />
                           </div>
                         </div>
@@ -1479,11 +1479,11 @@ export default function PlayersPage() {
                           <span className="stat-label">Level</span>
                         </div>
                         <div className="quick-stat">
-                          <span className="stat-value">{Math.round((player.armor_current / player.armor_max) * 100)}%</span>
+                          <span className="stat-value">{player.armor_current}</span>
                           <span className="stat-label">Armor</span>
                         </div>
                         <div className="quick-stat">
-                          <span className="stat-value">{Math.round((player.magic_resist_current / player.magic_resist_max) * 100)}%</span>
+                          <span className="stat-value">{player.magic_resist_current}</span>
                           <span className="stat-label">M.Resist</span>
                         </div>
                       </div>

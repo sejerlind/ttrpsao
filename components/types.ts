@@ -1,5 +1,6 @@
 // Character and Game State Types
 export interface Character {
+  id: string;
   name: string;
   class: string;
   level: number;
@@ -12,8 +13,8 @@ export interface Resources {
   mana: { current: number; max: number };
   stamina: { current: number; max: number };
   actionPoints: { current: number; max: number };
-  armor: { current: number; max: number };
-  magicResist: { current: number; max: number };
+  armor: { current: number };
+  magicResist: { current: number };
 }
 
 export interface Ability {
@@ -140,4 +141,59 @@ export interface TechTreeState {
     category: SkillCategory | 'all';
     showUnlockedOnly: boolean;
   };
+}
+
+// GM System Types
+export interface GameSession {
+  id: string;
+  name: string;
+  description?: string;
+  gm_name: string;
+  status: 'preparing' | 'active' | 'paused' | 'completed';
+  created_at: string;
+  started_at?: string;
+  ended_at?: string;
+  updated_at: string;
+  current_turn?: number;
+  turn_order?: any;
+  player_count?: number;
+  player_names?: string;
+}
+
+export interface GameSessionPlayer {
+  id: string;
+  game_session_id: string;
+  character_id: string;
+  joined_at: string;
+  is_active: boolean;
+}
+
+export interface AbilityUsageLog {
+  id: string;
+  game_session_id: string;
+  character_id: string;
+  ability_id: string;
+  used_at: string;
+  effect_description?: string;
+  damage_dealt?: string;
+  mana_cost_paid: number;
+  action_points_used: number;
+  turn_used?: number;
+  target_description?: string;
+  notes?: string;
+  character_name?: string;
+  character_class?: string;
+  ability_name?: string;
+  ability_description?: string;
+  ability_category?: string;
+}
+
+export interface GameEvent {
+  id: string;
+  game_session_id: string;
+  character_id?: string;
+  event_type: string;
+  event_description: string;
+  event_data?: any;
+  created_at: string;
 } 

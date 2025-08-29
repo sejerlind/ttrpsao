@@ -233,9 +233,9 @@ export default function SkillsPage() {
           action_points_current: 5,
           action_points_max: 7,
           armor_current: 145,
-          armor_max: 180,
+
           magic_resist_current: 85,
-          magic_resist_max: 100
+
         };
         
         setCharacter(sampleCharacter);
@@ -368,9 +368,9 @@ export default function SkillsPage() {
           action_points_current: 7,
           action_points_max: 7,
           armor_current: 45,
-          armor_max: 60,
+
           magic_resist_current: 79,
-          magic_resist_max: 100
+
         };
         
         setCharacter(fallbackCharacter);
@@ -397,9 +397,7 @@ export default function SkillsPage() {
         action_points_current: 8,
         action_points_max: 10,
         armor_current: 60,
-        armor_max: 80,
-        magic_resist_current: 50,
-        magic_resist_max: 70
+        magic_resist_current: 50
       };
       
       setCharacter(ultimateFallback);
