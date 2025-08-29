@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import styled, { ThemeProvider } from 'styled-components';
 import { theme } from '@/app/player/[id]/theme';
 import { supabase, DatabaseCharacter } from '@/lib/supabase';
@@ -10,6 +11,7 @@ import {
 } from '@/components/types';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import EnemyManager from '@/components/admin/EnemyManager';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -364,6 +366,7 @@ const ButtonGroup = styled.div`
 `;
 
 export default function GMPage() {
+  const router = useRouter();
   const [gameSessions, setGameSessions] = useState<GameSession[]>([]);
   const [activeSession, setActiveSession] = useState<GameSession | null>(null);
   const [abilityLogs, setAbilityLogs] = useState<AbilityUsageLog[]>([]);
@@ -690,9 +693,17 @@ export default function GMPage() {
             <PageTitle>🎲 Game Master Dashboard</PageTitle>
             <Subtitle>Manage game sessions and track player actions</Subtitle>
           </div>
-          <CreateSessionButton onClick={() => setShowCreateModal(true)}>
-            ➕ Create New Session
-          </CreateSessionButton>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <CreateSessionButton onClick={() => setShowCreateModal(true)}>
+              ➕ Create New Session
+            </CreateSessionButton>
+            <CreateSessionButton 
+              onClick={() => router.push('/playing')}
+              style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
+            >
+              ⚔️ Combat Overview
+            </CreateSessionButton>
+          </div>
         </PageHeader>
 
         {/* Turn Control Panel - only show if there's an active session */}
@@ -803,6 +814,19 @@ export default function GMPage() {
           )}
         </DashboardCard>
       </GMDashboard>
+
+      {/* Enemy Manager - Only show if there's an active session */}
+      {activeSession && activeSession.status === 'active' && (
+        <div style={{ marginTop: '2rem' }}>
+          <EnemyManager 
+            gameSessionId={activeSession.id}
+            onEnemyAdded={() => {
+              console.log('Enemy added to battle!');
+              // Optionally refresh data here
+            }}
+          />
+        </div>
+      )}
 
       {/* Create Game Session Modal */}
       <Modal 

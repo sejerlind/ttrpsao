@@ -196,4 +196,73 @@ export interface GameEvent {
   event_description: string;
   event_data?: Record<string, unknown>;
   created_at: string;
+}
+
+// Pokemon-style Battle System Types
+export interface Enemy {
+  id: string;
+  name: string;
+  type: string;
+  level: number;
+  health_current: number;
+  health_max: number;
+  mana_current: number;
+  mana_max: number;
+  attack_power: number;
+  defense: number;
+  speed: number;
+  experience_reward: number;
+  gold_reward: number;
+  description: string;
+  sprite_url?: string;
+  abilities?: string[];
+  resistances?: string[];
+  weaknesses?: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface BattleEncounter {
+  encounter_id: string;  // This is what the view actually returns
+  game_session_id: string;
+  enemy_id: string;
+  enemy_health_current: number;
+  enemy_mana_current: number;
+  turn_order_position: number;
+  // Joined enemy data from the view
+  enemy_name?: string;
+  enemy_type?: string;
+  enemy_level?: number;
+  enemy_health_max?: number;
+  enemy_mana_max?: number;
+  attack_power?: number;
+  defense?: number;
+  speed?: number;
+  enemy_description?: string;
+  sprite_url?: string;
+}
+
+export interface EnemyAbility {
+  id: string;
+  name: string;
+  description: string;
+  damage_min: number;
+  damage_max: number;
+  mana_cost: number;
+  cooldown: number;
+  effect_type: 'damage' | 'heal' | 'buff' | 'debuff';
+  target_type: 'single' | 'all' | 'self';
+  created_at: string;
+}
+
+export interface EnemyBattleLog {
+  id: string;
+  game_session_id: string;
+  enemy_id: string;
+  ability_used: string;
+  target_character_id?: string;
+  damage_dealt: number;
+  effect_description?: string;
+  turn_used: number;
+  used_at: string;
 } 

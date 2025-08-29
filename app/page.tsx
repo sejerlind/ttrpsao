@@ -16,7 +16,13 @@ export default function Home() {
         <div className={styles.ctas}>
           <Link
             className={styles.primary}
+            href="/playing"
+          >
+            ⚔️ Combat Overview
+          </Link>
+          <Link
             href="/player"
+            className={styles.secondary}
           >
             👥 View Players
           </Link>

@@ -1598,9 +1598,19 @@ export default function PlayerPage() {
             Back
           </BackButton>
           <PageTitle>Player: {character.name}</PageTitle>
-          <SkillsButton onClick={() => router.push(`/player/${params.id}/skills`)}>
-            Skills
-          </SkillsButton>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            {activeGameSession && (
+              <SkillsButton 
+                onClick={() => router.push('/playing')}
+                style={{ background: 'linear-gradient(135deg, #667eea, #764ba2)' }}
+              >
+                ⚔️ Combat Overview
+              </SkillsButton>
+            )}
+            <SkillsButton onClick={() => router.push(`/player/${params.id}/skills`)}>
+              Skills
+            </SkillsButton>
+          </div>
         </PageHeader>
         
         {/* Game Session Status Indicator */}
