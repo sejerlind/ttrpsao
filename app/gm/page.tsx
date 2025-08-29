@@ -385,7 +385,7 @@ export default function GMPage() {
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeSession) {
@@ -452,7 +452,7 @@ export default function GMPage() {
       console.log('📊 Loading ability logs for session:', sessionId);
       
       // Try the view first
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from('recent_ability_usage')
         .select('*')
         .eq('game_session_id', sessionId)
@@ -480,7 +480,7 @@ export default function GMPage() {
         }
 
         // Transform the fallback data to match the expected format
-        data = fallbackData?.map(log => ({
+        const transformedData = fallbackData?.map(log => ({
           ...log,
           character_name: log.characters?.name,
           character_class: log.characters?.class,
@@ -488,6 +488,9 @@ export default function GMPage() {
           ability_description: log.Abilities?.description,
           ability_category: log.Abilities?.category
         })) || [];
+
+        setAbilityLogs(transformedData);
+        return;
       }
 
       console.log('✅ Loaded ability logs:', data?.length || 0, 'entries');
@@ -564,7 +567,7 @@ export default function GMPage() {
     } catch (error) {
       console.error('Error creating game session:', error);
       const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
-        ? (error as any).message 
+        ? (error as { message: string }).message 
         : 'Unknown error occurred';
       
       if (errorMessage.includes('relation "game_sessions" does not exist')) {
@@ -642,7 +645,7 @@ export default function GMPage() {
       if (error) {
         console.error('❌ Error advancing turn:', error);
         const errorMessage = typeof error === 'object' && error !== null && 'message' in error 
-          ? (error as any).message 
+          ? (error as { message: string }).message 
           : 'Unknown error occurred';
         alert(`Error advancing turn: ${errorMessage}`);
         return;

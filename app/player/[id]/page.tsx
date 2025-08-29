@@ -27,7 +27,7 @@ import type {
   GameSession,
   AbilityUsageLog
 } from '../../../components/types';
-import type { DatabaseCharacter } from '../../../lib/supabase';
+import type { DatabaseCharacter, DatabaseAbility } from '../../../lib/supabase';
 
 // Main container styled component
 const Container = styled.div`
@@ -1106,7 +1106,7 @@ export default function PlayerPage() {
       
       console.log('Abilities data:', abilitiesData);
       
-      const playerAbilities = abilitiesData?.map((dbAbility: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+      const playerAbilities = abilitiesData?.map((dbAbility: DatabaseAbility) => ({
         id: dbAbility.id,
         name: dbAbility.name,
         description: dbAbility.description,
@@ -1166,21 +1166,6 @@ export default function PlayerPage() {
     }
   }, [playerId]);
 
-  // Load character and abilities on component mount or when playerId changes
-  useEffect(() => {
-    if (playerId) {
-      loadCharacter();
-      loadAbilities();
-    }
-  }, [playerId, loadAbilities, loadCharacter]);
-
-  // Check for active game sessions when character loads
-  useEffect(() => {
-    if (character) {
-      checkActiveGameSession();
-    }
-  }, [character]);
-
   // Check if this character is in any active game sessions
   // Load session players and activity
   const loadSessionData = async (sessionId: string) => {
@@ -1205,7 +1190,7 @@ export default function PlayerPage() {
         .eq('is_active', true);
 
       if (!playersError && playersData) {
-        const players = playersData.map(p => p.characters as any);
+        const players = playersData.map(p => p.characters).filter(Boolean) as unknown as DatabaseCharacter[];
         setSessionPlayers(players);
       }
 
@@ -1235,7 +1220,7 @@ export default function PlayerPage() {
     }
   };
 
-  const checkActiveGameSession = async () => {
+  const checkActiveGameSession = useCallback(async () => {
     if (!supabase || !character) {
       console.log('🔍 Cannot check game session - missing supabase or character');
       return;
@@ -1269,7 +1254,7 @@ export default function PlayerPage() {
 
       if (data && data.length > 0) {
         const sessionData = data[0];
-        const gameSession = sessionData.game_sessions as any;
+        const gameSession = sessionData.game_sessions as unknown as GameSession;
         setActiveGameSession(sessionData.game_session_id);
         setCurrentGameTurn(gameSession?.current_turn || 1);
         setGameSession(gameSession);
@@ -1293,7 +1278,22 @@ export default function PlayerPage() {
     } catch (error) {
       console.error('❌ Unexpected error checking active game session:', error);
     }
-  };
+  }, [character]);
+
+  // Load character and abilities on component mount or when playerId changes
+  useEffect(() => {
+    if (playerId) {
+      loadCharacter();
+      loadAbilities();
+    }
+  }, [playerId, loadAbilities, loadCharacter]);
+
+  // Check for active game sessions when character loads
+  useEffect(() => {
+    if (character) {
+      checkActiveGameSession();
+    }
+  }, [character, checkActiveGameSession]);
 
   // Log ability usage to database for GM tracking
   const logAbilityUsage = async (ability: Ability, effectDescription: string) => {
