@@ -594,7 +594,7 @@ export default function PlayingScreen() {
     const timer = setInterval(loadGameData, 5000);
 
     // Real-time updates via Supabase channels
-    let subscription: ReturnType<typeof supabase.channel> | null = null;
+    let subscription: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
     
     if (supabase) {
       subscription = supabase
