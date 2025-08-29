@@ -568,15 +568,18 @@ export default function PlayingScreen() {
         setRecentActivity(activities);
       }
 
-      // Load battle encounters (enemies)
+      // Load battle encounters (enemies) from database
       const { data: encounters, error: encountersError } = await supabase
         .from('active_battle_encounters')
         .select('*')
-        .eq('game_session_id', activeSession.id);
+        .eq('game_session_id', activeSession.id)
+        .order('turn_order_position', { ascending: true });
 
       if (!encountersError && encounters) {
         setEnemies(encounters);
-        console.log('✅ Loaded enemies:', encounters.map(e => `${e.enemy_name} (${e.enemy_health_current}/${e.enemy_health_max} HP)`));
+        console.log('✅ Loaded enemies from database:', encounters.map(e => `${e.enemy_name} (${e.enemy_health_current}/${e.enemy_health_max} HP) - Level ${e.enemy_level}`));
+      } else if (encountersError) {
+        console.error('❌ Error loading enemies from database:', encountersError);
       }
 
     } catch (error) {
@@ -598,7 +601,7 @@ export default function PlayingScreen() {
     
     if (supabase) {
       subscription = supabase
-        .channel('character-updates')
+        .channel('game-updates')
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
@@ -606,6 +609,24 @@ export default function PlayingScreen() {
         }, (payload) => {
           console.log('🔄 Character updated in real-time:', payload);
           // Refresh data when any character changes
+          loadGameData();
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'battle_encounters'
+        }, (payload) => {
+          console.log('🔄 Battle encounter updated in real-time:', payload);
+          // Refresh data when enemy health changes
+          loadGameData();
+        })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ability_usage_log'
+        }, (payload) => {
+          console.log('🔄 New ability used in real-time:', payload);
+          // Refresh data when abilities are used
           loadGameData();
         })
         .subscribe();
@@ -719,6 +740,12 @@ export default function PlayingScreen() {
             players={players}
             enemies={enemies}
             currentTurn={gameSession.current_turn || 1}
+            gameSessionId={gameSession.id}
+            onPlayerAction={(action) => {
+              console.log('Player action:', action);
+              // Refresh game data after action
+              loadGameData();
+            }}
           />
         ) : (
           <GameDashboard>

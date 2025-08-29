@@ -25,7 +25,8 @@ import type {
   UsedAbility, 
   FloatingTextItem,
   GameSession,
-  AbilityUsageLog
+  AbilityUsageLog,
+  BattleEncounter
 } from '../../../components/types';
 import type { DatabaseCharacter, DatabaseAbility } from '../../../lib/supabase';
 
@@ -970,6 +971,9 @@ export default function PlayerPage() {
   const [isLoadingAbilities, setIsLoadingAbilities] = useState(true);
   const [activeGameSession, setActiveGameSession] = useState<string | null>(null);
   const [currentGameTurn, setCurrentGameTurn] = useState<number>(1);
+  const [battleEnemies, setBattleEnemies] = useState<BattleEncounter[]>([]);
+  const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
+  const [showTargetSelection, setShowTargetSelection] = useState(false);
 
   // Session-related state
   const [gameSession, setGameSession] = useState<GameSession | null>(null);
@@ -1166,6 +1170,31 @@ export default function PlayerPage() {
     }
   }, [playerId]);
 
+  // Load battle encounters for combat targeting
+  const loadBattleEnemies = async (sessionId: string) => {
+    if (!supabase) return;
+
+    try {
+      console.log('🔍 Loading battle enemies from database for session:', sessionId);
+      const { data: encounters, error } = await supabase
+        .from('active_battle_encounters')
+        .select('*')
+        .eq('game_session_id', sessionId)
+        .order('turn_order_position', { ascending: true });
+
+      if (!error && encounters) {
+        setBattleEnemies(encounters);
+        console.log('🎯 Loaded battle enemies from database for targeting:', encounters.map(e => `${e.enemy_name}: ${e.enemy_health_current}/${e.enemy_health_max} HP - Level ${e.enemy_level}`));
+      } else if (error) {
+        console.error('❌ Error loading battle enemies from database:', error);
+      } else {
+        console.log('ℹ️ No battle enemies found in database for session:', sessionId);
+      }
+    } catch (error) {
+      console.error('Error loading battle enemies:', error);
+    }
+  };
+
   // Check if this character is in any active game sessions
   // Load session players and activity
   const loadSessionData = async (sessionId: string) => {
@@ -1267,6 +1296,8 @@ export default function PlayerPage() {
 
         // Load session players and activity
         loadSessionData(sessionData.game_session_id);
+        // Load battle enemies for targeting
+        loadBattleEnemies(sessionData.game_session_id);
       } else {
         setActiveGameSession(null);
         setCurrentGameTurn(1);
@@ -1295,8 +1326,41 @@ export default function PlayerPage() {
     }
   }, [character, checkActiveGameSession]);
 
+  // Calculate damage from ability string (e.g., "2d6+3" or "15")
+  const calculateDamage = (damageString: string): number => {
+    if (!damageString) return 0;
+    
+    // Handle simple number (e.g., "15")
+    const simpleNumber = parseInt(damageString);
+    if (!isNaN(simpleNumber)) {
+      return simpleNumber;
+    }
+    
+    // Handle dice notation (e.g., "2d6+3")
+    const diceMatch = damageString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
+    if (diceMatch) {
+      const [, numDice, diceSize, bonus] = diceMatch;
+      let total = 0;
+      
+      // Roll dice
+      for (let i = 0; i < parseInt(numDice); i++) {
+        total += Math.floor(Math.random() * parseInt(diceSize)) + 1;
+      }
+      
+      // Add bonus
+      if (bonus) {
+        total += parseInt(bonus);
+      }
+      
+      return total;
+    }
+    
+    // Fallback to 0 if can't parse
+    return 0;
+  };
+
   // Log ability usage to database for GM tracking
-  const logAbilityUsage = async (ability: Ability, effectDescription: string) => {
+  const logAbilityUsage = async (ability: Ability, effectDescription: string, targetDescription?: string, actualDamage?: number) => {
     console.log('🎯 Attempting to log ability usage:', {
       ability: ability.name,
       effect: effectDescription,
@@ -1332,11 +1396,11 @@ export default function PlayerPage() {
           character_id: character.id,
           ability_id: ability.id,
           effect_description: effectDescription,
-          damage_dealt: ability.damage || null,
+          damage_dealt: actualDamage ? actualDamage.toString() : null,
           mana_cost_paid: ability.manaCost || 0,
           action_points_used: 1,
           turn_used: currentGameTurn,
-          target_description: null, // Could be enhanced later for target selection
+          target_description: targetDescription || null,
           notes: null
         })
         .select();
@@ -1497,6 +1561,23 @@ export default function PlayerPage() {
       return;
     }
 
+    // Check if in combat and ability requires targeting
+    const inCombat = battleEnemies.length > 0;
+    const needsTarget = inCombat && (ability.damage || ability.effects?.some(e => e.toLowerCase().includes('heal')));
+
+    if (needsTarget && !selectedTarget) {
+      // Show target selection
+      setShowTargetSelection(true);
+      setCurrentSelectedAbility(ability);
+      return;
+    }
+
+    await executeAbility(ability, event);
+  };
+
+  const [currentSelectedAbility, setCurrentSelectedAbility] = useState<Ability | null>(null);
+
+  const executeAbility = async (ability: Ability, event: React.MouseEvent) => {
     // Use ability
     setAbilities(prev => prev.map(a => 
       a.id === ability.id 
@@ -1516,28 +1597,94 @@ export default function PlayerPage() {
       }
     }));
 
+    // Calculate actual damage and apply to targets
+    const actualDamage = ability.damage ? calculateDamage(ability.damage) : 0;
+    let effectDescription = '';
+    let targetDescription = '';
+
+    if (selectedTarget && selectedTarget.startsWith('enemy_')) {
+      const encounterId = selectedTarget.replace('enemy_', '');
+      const targetEnemy = battleEnemies.find(e => e.encounter_id === encounterId);
+      
+      if (targetEnemy && actualDamage > 0 && supabase) {
+        // Apply damage to enemy
+        const newHealth = Math.max(0, targetEnemy.enemy_health_current - actualDamage);
+        
+        const { error: enemyUpdateError } = await supabase
+          .from('battle_encounters')
+          .update({
+            enemy_health_current: newHealth,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', encounterId);
+
+        if (!enemyUpdateError) {
+          effectDescription = `Dealt ${actualDamage} damage to ${targetEnemy.enemy_name}`;
+          targetDescription = targetEnemy.enemy_name || 'Unknown Enemy';
+          
+          if (newHealth <= 0) {
+            effectDescription += ' (DEFEATED!)';
+            // Mark enemy as inactive
+            await supabase
+              .from('battle_encounters')
+              .update({ is_active: false })
+              .eq('id', encounterId);
+          }
+        }
+      }
+    } else if (selectedTarget && selectedTarget.startsWith('player_')) {
+      const playerId = selectedTarget.replace('player_', '');
+      const targetPlayer = sessionPlayers.find(p => p.id === playerId);
+      
+      if (targetPlayer && ability.effects?.some(e => e.toLowerCase().includes('heal')) && supabase) {
+        const newHealth = Math.min(targetPlayer.health_max, targetPlayer.health_current + actualDamage);
+        
+        const { error: healError } = await supabase
+          .from('characters')
+          .update({
+            health_current: newHealth,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', playerId);
+
+        if (!healError) {
+          effectDescription = `Healed ${targetPlayer.name} for ${actualDamage} HP`;
+          targetDescription = targetPlayer.name;
+        }
+      }
+    }
+
+    // Fallback effect description
+    if (!effectDescription) {
+      effectDescription = ability.damage ? `Dealt ${actualDamage || ability.damage} damage` : ability.effects?.[0] || 'Effect applied';
+    }
+
     // Add to recently used
     const usedAbility: UsedAbility = {
       abilityName: ability.name,
       timestamp: new Date(),
-      effect: ability.damage ? `Dealt ${ability.damage} damage` : ability.effects?.[0] || 'Effect applied'
+      effect: effectDescription
     };
     setRecentlyUsedAbilities(prev => [usedAbility, ...prev.slice(0, 4)]);
 
     // Log ability usage to database for GM tracking
-    await logAbilityUsage(ability, usedAbility.effect);
+    await logAbilityUsage(ability, effectDescription, targetDescription, actualDamage);
 
     // Show floating text
     const rect = (event.target as HTMLElement).getBoundingClientRect();
     const floatingText: FloatingTextItem = {
       id: Date.now().toString(),
-      text: ability.damage ? ability.damage : ability.effects?.[0] || 'Used!',
+      text: actualDamage > 0 ? `${actualDamage} DMG` : effectDescription,
       x: rect.left + rect.width / 2,
       y: rect.top,
-      type: ability.damage ? 'damage' : 'effect'
+      type: actualDamage > 0 ? 'damage' : 'effect'
     };
     setFloatingTexts(prev => [...prev, floatingText]);
 
+    // Reset selection and close modal
+    setSelectedTarget(null);
+    setShowTargetSelection(false);
+    setCurrentSelectedAbility(null);
     handleCloseModal();
   };
 
@@ -1859,6 +2006,134 @@ export default function PlayerPage() {
               )}
             </ModalBody>
           )}
+        </Modal>
+
+        {/* Target Selection Modal for Combat */}
+        <Modal
+          isOpen={showTargetSelection}
+          onClose={() => {
+            setShowTargetSelection(false);
+            setCurrentSelectedAbility(null);
+            setSelectedTarget(null);
+          }}
+          title={`Select Target for ${currentSelectedAbility?.name || 'Ability'}`}
+        >
+          <div style={{ padding: theme.spacing.md }}>
+            <p style={{ marginBottom: theme.spacing.md, color: theme.colors.text.secondary }}>
+              Choose a target for your ability:
+            </p>
+            
+            {/* Enemy Targets */}
+            {battleEnemies.length > 0 && (
+              <div style={{ marginBottom: theme.spacing.lg }}>
+                <h4 style={{ color: theme.colors.text.primary, marginBottom: theme.spacing.sm }}>
+                  Enemies:
+                </h4>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                  gap: theme.spacing.sm 
+                }}>
+                  {battleEnemies.map(enemy => (
+                    <button
+                      key={enemy.encounter_id}
+                      onClick={() => setSelectedTarget(`enemy_${enemy.encounter_id}`)}
+                      style={{
+                        background: selectedTarget === `enemy_${enemy.encounter_id}` 
+                          ? theme.colors.accent.cyan 
+                          : 'rgba(255, 255, 255, 0.1)',
+                        border: selectedTarget === `enemy_${enemy.encounter_id}` 
+                          ? '2px solid transparent' 
+                          : '2px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: theme.borderRadius.medium,
+                        padding: theme.spacing.sm,
+                        color: selectedTarget === `enemy_${enemy.encounter_id}` 
+                          ? 'white' 
+                          : theme.colors.text.secondary,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {enemy.enemy_name || 'Unknown Enemy'}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                        {enemy.enemy_health_current}/{enemy.enemy_health_max || 100} HP
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Player Targets (for healing abilities) */}
+            {currentSelectedAbility?.effects?.some(e => e.toLowerCase().includes('heal')) && (
+              <div style={{ marginBottom: theme.spacing.lg }}>
+                <h4 style={{ color: theme.colors.text.primary, marginBottom: theme.spacing.sm }}>
+                  Party Members:
+                </h4>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+                  gap: theme.spacing.sm 
+                }}>
+                  {[character, ...sessionPlayers].filter(p => p).map(player => (
+                    <button
+                      key={player!.id}
+                      onClick={() => setSelectedTarget(`player_${player!.id}`)}
+                      style={{
+                        background: selectedTarget === `player_${player!.id}` 
+                          ? theme.colors.accent.cyan 
+                          : 'rgba(255, 255, 255, 0.1)',
+                        border: selectedTarget === `player_${player!.id}` 
+                          ? '2px solid transparent' 
+                          : '2px solid rgba(255, 255, 255, 0.3)',
+                        borderRadius: theme.borderRadius.medium,
+                        padding: theme.spacing.sm,
+                        color: selectedTarget === `player_${player!.id}` 
+                          ? 'white' 
+                          : theme.colors.text.secondary,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease'
+                      }}
+                    >
+                      <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        {player!.name}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
+                        {(player as DatabaseCharacter).health_current}/{(player as DatabaseCharacter).health_max} HP
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              marginTop: theme.spacing.lg 
+            }}>
+              <Button onClick={() => {
+                setShowTargetSelection(false);
+                setCurrentSelectedAbility(null);
+                setSelectedTarget(null);
+              }}>
+                Cancel
+              </Button>
+              <Button 
+                $primary 
+                onClick={() => {
+                  if (currentSelectedAbility) {
+                    executeAbility(currentSelectedAbility, {} as React.MouseEvent);
+                  }
+                }}
+                disabled={!selectedTarget}
+              >
+                Use Ability
+              </Button>
+            </div>
+          </div>
         </Modal>
       </Container>
     </ThemeProvider>
