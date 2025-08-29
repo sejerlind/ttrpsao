@@ -155,7 +155,7 @@ export interface GameSession {
   ended_at?: string;
   updated_at: string;
   current_turn?: number;
-  turn_order?: any;
+  turn_order?: string[];
   player_count?: number;
   player_names?: string;
 }
@@ -194,6 +194,6 @@ export interface GameEvent {
   character_id?: string;
   event_type: string;
   event_description: string;
-  event_data?: any;
+  event_data?: Record<string, unknown>;
   created_at: string;
 } 
