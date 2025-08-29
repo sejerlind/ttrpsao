@@ -8,6 +8,7 @@ interface ButtonProps {
   onClick?: (event?: React.MouseEvent) => void;
   disabled?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  style?: React.CSSProperties;
 }
 
 const StyledButton = styled.button<ButtonProps>`
@@ -70,9 +71,9 @@ const StyledButton = styled.button<ButtonProps>`
   }
 `;
 
-export default function Button({ children, onClick, ...props }: ButtonProps) {
+export default function Button({ children, onClick, style, ...props }: ButtonProps) {
   return (
-    <StyledButton {...props} onClick={onClick}>
+    <StyledButton {...props} onClick={onClick} style={style}>
       {children}
     </StyledButton>
   );
