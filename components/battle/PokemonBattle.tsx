@@ -120,14 +120,16 @@ const CharacterGrid = styled.div`
   gap: ${props => props.theme.spacing.md};
 `;
 
-const CharacterCard = styled.div<{ $isPlayer?: boolean; $isActive?: boolean; $isDead?: boolean }>`
+const CharacterCard = styled.div<{ $isPlayer?: boolean; $isActive?: boolean; $isDead?: boolean; $isCurrentPlayer?: boolean }>`
   background: ${props => {
     if (props.$isDead) return 'linear-gradient(145deg, rgba(107, 114, 128, 0.3), rgba(75, 85, 99, 0.3))';
+    if (props.$isCurrentPlayer) return 'linear-gradient(145deg, rgba(78, 205, 196, 0.4), rgba(69, 183, 209, 0.3))';
     if (props.$isActive) return 'linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1))';
     return 'linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05))';
   }};
   border: 2px solid ${props => {
     if (props.$isDead) return 'rgba(107, 114, 128, 0.5)';
+    if (props.$isCurrentPlayer) return '#4ecdc4';
     if (props.$isActive) return props.$isPlayer ? '#4ecdc4' : '#f59e0b';
     return 'rgba(255, 255, 255, 0.2)';
   }};
@@ -136,10 +138,15 @@ const CharacterCard = styled.div<{ $isPlayer?: boolean; $isActive?: boolean; $is
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
+  ${props => props.$isCurrentPlayer && `
+    box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+  `}
 
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    box-shadow: ${props => props.$isCurrentPlayer 
+      ? '0 12px 40px rgba(78, 205, 196, 0.6)' 
+      : '0 12px 40px rgba(0, 0, 0, 0.4)'};
     border-color: ${props => props.$isPlayer ? '#4ecdc4' : '#f59e0b'};
   }
 
@@ -152,12 +159,29 @@ const CharacterCard = styled.div<{ $isPlayer?: boolean; $isActive?: boolean; $is
     height: 4px;
     background: ${props => {
       if (props.$isDead) return 'linear-gradient(90deg, #6b7280, #4b5563)';
+      if (props.$isCurrentPlayer) return 'linear-gradient(90deg, #4ecdc4, #45b7d1)';
       if (props.$isActive) return props.$isPlayer 
         ? 'linear-gradient(90deg, #4ecdc4, #45b7d1)'
         : 'linear-gradient(90deg, #f59e0b, #d97706)';
       return 'transparent';
     }};
   }
+
+  ${props => props.$isCurrentPlayer && `
+    &::after {
+      content: '👤 YOU';
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(78, 205, 196, 0.9);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+  `}
 
   ${props => props.$isDead && `
     filter: grayscale(70%);
@@ -434,11 +458,233 @@ const TargetButton = styled.button<{ $selected?: boolean }>`
   }
 `;
 
+const PlayerStatsPanel = styled.div`
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  background: ${props => props.theme.gradients.card};
+  border: 2px solid ${props => props.theme.colors.accent.cyan};
+  border-radius: ${props => props.theme.borderRadius.large};
+  padding: ${props => props.theme.spacing.lg};
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 999;
+  backdrop-filter: blur(10px);
+  max-height: 70vh;
+  overflow-y: auto;
+
+  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
+    position: relative;
+    width: 100%;
+    margin-top: ${props => props.theme.spacing.lg};
+    bottom: auto;
+    right: auto;
+    max-height: none;
+  }
+`;
+
+const PlayerActionsPanel = styled.div`
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  width: 400px;
+  background: ${props => props.theme.gradients.card};
+  border: 2px solid ${props => props.theme.colors.accent.purple};
+  border-radius: ${props => props.theme.borderRadius.large};
+  padding: ${props => props.theme.spacing.lg};
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  z-index: 999;
+  backdrop-filter: blur(10px);
+  max-height: 70vh;
+  overflow-y: auto;
+
+  @media (max-width: ${props => props.theme.breakpoints.tablet}) {
+    position: relative;
+    width: 100%;
+    margin-top: ${props => props.theme.spacing.lg};
+    bottom: auto;
+    left: auto;
+    max-height: none;
+  }
+`;
+
+const ActionsHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: ${props => props.theme.spacing.md};
+  padding-bottom: ${props => props.theme.spacing.sm};
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+
+  .title {
+    font-weight: bold;
+    color: ${props => props.theme.colors.text.primary};
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: ${props => props.theme.spacing.sm};
+  }
+
+  .ap-info {
+    background: rgba(255, 255, 255, 0.1);
+    color: ${props => props.theme.colors.text.primary};
+    padding: 4px 12px;
+    border-radius: ${props => props.theme.borderRadius.pill};
+    font-size: 0.8rem;
+    font-weight: bold;
+  }
+`;
+
+const QuickActionsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: ${props => props.theme.spacing.sm};
+  margin-bottom: ${props => props.theme.spacing.lg};
+`;
+
+const QuickActionButton = styled.button<{ $disabled?: boolean; $onCooldown?: boolean }>`
+  background: ${props => {
+    if (props.$disabled) return 'rgba(107, 114, 128, 0.3)';
+    if (props.$onCooldown) return 'rgba(239, 68, 68, 0.3)';
+    return 'linear-gradient(135deg, #8b5cf6, #7c3aed)';
+  }};
+  border: 2px solid ${props => {
+    if (props.$disabled) return 'rgba(107, 114, 128, 0.5)';
+    if (props.$onCooldown) return 'rgba(239, 68, 68, 0.5)';
+    return '#8b5cf6';
+  }};
+  border-radius: ${props => props.theme.borderRadius.medium};
+  padding: ${props => props.theme.spacing.sm};
+  color: ${props => props.$disabled ? '#9ca3af' : 'white'};
+  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+  }
+  
+  .ability-name {
+    font-weight: bold;
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+  }
+  
+  .ability-info {
+    font-size: 0.7rem;
+    opacity: 0.8;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .cooldown-overlay {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    padding: 1px 6px;
+    border-radius: ${props => props.theme.borderRadius.small};
+    font-size: 0.6rem;
+    font-weight: bold;
+  }
+`;
+
+const PlayerStatsHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: ${props => props.theme.spacing.md};
+  padding-bottom: ${props => props.theme.spacing.sm};
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+
+  .player-info {
+    display: flex;
+    align-items: center;
+    gap: ${props => props.theme.spacing.sm};
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: ${props => props.theme.colors.accent.cyan};
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: white;
+    }
+
+    .details {
+      .name {
+        font-weight: bold;
+        color: ${props => props.theme.colors.text.primary};
+        font-size: 0.9rem;
+      }
+      .class {
+        color: ${props => props.theme.colors.text.secondary};
+        font-size: 0.8rem;
+      }
+    }
+  }
+
+  .toggle {
+    background: none;
+    border: none;
+    color: ${props => props.theme.colors.text.secondary};
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: ${props => props.theme.colors.text.primary};
+    }
+  }
+`;
+
+const DetailedStats = styled.div`
+  display: grid;
+  gap: ${props => props.theme.spacing.sm};
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: ${props => props.theme.spacing.xs} 0;
+
+    .stat-label {
+      color: ${props => props.theme.colors.text.secondary};
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .stat-value {
+      color: ${props => props.theme.colors.text.primary};
+      font-weight: bold;
+      font-size: 0.8rem;
+    }
+  }
+
+  .combat-stats {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: ${props => props.theme.spacing.sm};
+    margin-top: ${props => props.theme.spacing.sm};
+  }
+`;
+
 interface PokemonBattleProps {
   players: DatabaseCharacter[];
   enemies: BattleEncounter[];
   currentTurn: number;
   gameSessionId?: string;
+  currentPlayerId?: string; // ID of the player viewing this battle
   onPlayerAction?: (action: {
     type: string;
     characterId: string;
@@ -453,6 +699,7 @@ export default function PokemonBattle({
   enemies, 
   currentTurn,
   gameSessionId,
+  currentPlayerId,
   onPlayerAction
 }: PokemonBattleProps) {
   const [selectedCharacter, setSelectedCharacter] = useState<DatabaseCharacter | null>(null);
@@ -462,6 +709,18 @@ export default function PokemonBattle({
   const [showActionPanel, setShowActionPanel] = useState(false);
   const [floatingTexts, setFloatingTexts] = useState<FloatingTextItem[]>([]);
   const [isExecutingAction, setIsExecutingAction] = useState(false);
+  const [showPlayerStats, setShowPlayerStats] = useState(currentPlayerId ? true : false);
+  const [showPlayerActions, setShowPlayerActions] = useState(currentPlayerId ? true : false);
+
+  // Get current player data
+  const currentPlayer = currentPlayerId ? players.find(p => p.id === currentPlayerId) : null;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🎯 PokemonBattle - Players received:', players.length, players.map(p => p.name));
+    console.log('🎯 PokemonBattle - Current player ID:', currentPlayerId);
+    console.log('🎯 PokemonBattle - Current player found:', currentPlayer?.name);
+  }, [players, currentPlayerId, currentPlayer]);
 
   // Auto-remove floating texts after animation
   useEffect(() => {
@@ -555,6 +814,38 @@ export default function PokemonBattle({
       }
     } catch (error) {
       console.error('Error loading abilities:', error);
+    }
+  };
+
+  // Load abilities for current player when they are available
+  useEffect(() => {
+    if (currentPlayer && currentPlayerId && characterAbilities.length === 0) {
+      loadCharacterAbilities();
+    }
+  }, [currentPlayer, currentPlayerId, characterAbilities.length]);
+
+  // Handle quick ability use
+  const handleQuickAbilityUse = async (ability: Ability) => {
+    if (!currentPlayer || !canUseAbility(ability, currentPlayer)) return;
+    
+    setSelectedCharacter(currentPlayer);
+    setSelectedAbility(ability);
+    
+    // Auto-select first available target based on ability type
+    const targets = getAvailableTargets();
+    if (targets.length > 0) {
+      // For damage abilities, prefer enemies; for heal abilities, prefer players
+      const isHealingAbility = ability.effects?.some(e => e.toLowerCase().includes('heal'));
+      const preferredTargets = targets.filter(t => 
+        isHealingAbility ? t.type === 'player' : t.type === 'enemy'
+      );
+      const targetToSelect = preferredTargets.length > 0 ? preferredTargets[0] : targets[0];
+      setSelectedTarget(targetToSelect.id);
+      
+      // Auto-execute if we have a clear target
+      setTimeout(() => {
+        executeAction();
+      }, 100);
     }
   };
 
@@ -841,12 +1132,14 @@ export default function PokemonBattle({
               const manaPercentage = getHealthPercentage(player.mana_current, player.mana_max);
               const staminaPercentage = getHealthPercentage(player.stamina_current, player.stamina_max);
               const isDead = player.health_current <= 0;
+              const isCurrentPlayer = currentPlayerId === player.id;
               
               return (
                 <CharacterCard 
                   key={player.id} 
                   $isPlayer 
                   $isDead={isDead}
+                  $isCurrentPlayer={isCurrentPlayer}
                   onClick={() => !isDead && handleCharacterSelect(player)}
                   style={{ cursor: !isDead ? 'pointer' : 'default' }}
                 >
@@ -1079,6 +1372,146 @@ export default function PokemonBattle({
             </TargetSelection>
           )}
         </ActionPanel>
+      )}
+
+      {/* Player Actions Panel - only show if currentPlayerId is provided */}
+      {currentPlayer && (
+        <PlayerActionsPanel>
+          <ActionsHeader>
+            <div className="title">
+              ⚔️ Available Actions
+            </div>
+            <div className="ap-info">
+              {currentPlayer.action_points_current}/{currentPlayer.action_points_max} AP
+            </div>
+          </ActionsHeader>
+          
+          {showPlayerActions && (
+            <>
+              <QuickActionsGrid>
+                {characterAbilities.slice(0, 6).map(ability => {
+                  const disabled = !canUseAbility(ability, currentPlayer);
+                  const onCooldown = ability.currentCooldown > 0;
+                  
+                  return (
+                    <QuickActionButton
+                      key={ability.id}
+                      $disabled={disabled}
+                      $onCooldown={onCooldown}
+                      onClick={() => handleQuickAbilityUse(ability)}
+                      disabled={disabled}
+                      title={ability.description}
+                    >
+                      <div className="ability-name">{ability.name}</div>
+                      <div className="ability-info">
+                        <span>{ability.manaCost ? `${ability.manaCost} MP` : 'Free'}</span>
+                        {ability.damage && <span>{ability.damage} DMG</span>}
+                      </div>
+                      {onCooldown && (
+                        <div className="cooldown-overlay">{ability.currentCooldown}</div>
+                      )}
+                    </QuickActionButton>
+                  );
+                })}
+              </QuickActionsGrid>
+              
+              <div style={{ 
+                textAlign: 'center',
+                borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                paddingTop: '12px'
+              }}>
+                <button
+                  onClick={() => currentPlayer && handleCharacterSelect(currentPlayer)}
+                  style={{
+                    background: 'linear-gradient(135deg, #4ecdc4, #45b7d1)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: 'white',
+                    padding: '8px 16px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  📋 View All Abilities
+                </button>
+              </div>
+            </>
+          )}
+        </PlayerActionsPanel>
+      )}
+
+      {/* Player Stats Panel - only show if currentPlayerId is provided */}
+      {currentPlayer && (
+        <PlayerStatsPanel>
+          <PlayerStatsHeader>
+            <div className="player-info">
+              <div className="avatar">
+                {currentPlayer.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="details">
+                <div className="name">{currentPlayer.name}</div>
+                <div className="class">{currentPlayer.class} • Lv.{currentPlayer.level}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button 
+                className="toggle"
+                onClick={() => setShowPlayerActions(!showPlayerActions)}
+                title={showPlayerActions ? "Hide Actions" : "Show Actions"}
+              >
+                {showPlayerActions ? "⚔️" : "💤"}
+              </button>
+              <button 
+                className="toggle"
+                onClick={() => setShowPlayerStats(!showPlayerStats)}
+                title={showPlayerStats ? "Hide Details" : "Show Details"}
+              >
+                {showPlayerStats ? "📊" : "👁️"}
+              </button>
+            </div>
+          </PlayerStatsHeader>
+          
+          {showPlayerStats && (
+            <DetailedStats>
+              <div className="stat-row">
+                <span className="stat-label">❤️ Health</span>
+                <span className="stat-value">{currentPlayer.health_current}/{currentPlayer.health_max}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">💙 Mana</span>
+                <span className="stat-value">{currentPlayer.mana_current}/{currentPlayer.mana_max}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">💚 Stamina</span>
+                <span className="stat-value">{currentPlayer.stamina_current}/{currentPlayer.stamina_max}</span>
+              </div>
+              <div className="stat-row">
+                <span className="stat-label">⚡ Action Points</span>
+                <span className="stat-value">{currentPlayer.action_points_current}/{currentPlayer.action_points_max}</span>
+              </div>
+              
+              <div className="combat-stats">
+                <div className="stat-row">
+                  <span className="stat-label">🛡️ Armor</span>
+                  <span className="stat-value">{currentPlayer.armor_current}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-label">🔮 Magic Resist</span>
+                  <span className="stat-value">{currentPlayer.magic_resist_current}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-label">✨ Experience</span>
+                  <span className="stat-value">{currentPlayer.experience}</span>
+                </div>
+                <div className="stat-row">
+                  <span className="stat-label">📈 To Next Level</span>
+                  <span className="stat-value">{currentPlayer.experience_to_next}</span>
+                </div>
+              </div>
+            </DetailedStats>
+          )}
+        </PlayerStatsPanel>
       )}
 
       {/* Floating Text */}

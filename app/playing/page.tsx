@@ -741,6 +741,7 @@ export default function PlayingScreen() {
             enemies={enemies}
             currentTurn={gameSession.current_turn || 1}
             gameSessionId={gameSession.id}
+            // No currentPlayerId - this is the general overview
             onPlayerAction={(action) => {
               console.log('Player action:', action);
               // Refresh game data after action

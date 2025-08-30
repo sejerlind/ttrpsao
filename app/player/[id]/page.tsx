@@ -1773,22 +1773,60 @@ export default function PlayerPage() {
             fontWeight: '600',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
             gap: '12px',
             boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
             border: '1px solid rgba(255, 255, 255, 0.2)'
           }}>
-            <span style={{ fontSize: '16px' }}>🎮</span>
-            <span>IN ACTIVE GAME SESSION - Abilities will be tracked</span>
-            <span style={{ 
-              background: 'rgba(255, 255, 255, 0.2)', 
-              padding: '4px 8px', 
-              borderRadius: '8px',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}>
-              Turn {currentGameTurn}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '16px' }}>🎮</span>
+              <span>IN ACTIVE GAME SESSION - Abilities will be tracked</span>
+              <span style={{ 
+                background: 'rgba(255, 255, 255, 0.2)', 
+                padding: '4px 8px', 
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 'bold'
+              }}>
+                Turn {currentGameTurn}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button
+                onClick={() => router.push(`/player/${playerId}/playing`)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: 'white',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                ⚔️ Battle View
+              </Button>
+              <Button
+                onClick={() => router.push('/playing')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: 'white',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                📊 Overview
+              </Button>
+            </div>
           </div>
         )}
         
