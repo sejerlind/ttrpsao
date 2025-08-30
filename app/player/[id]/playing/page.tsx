@@ -7,7 +7,6 @@ import { theme } from '../theme';
 import { supabase } from '@/lib/supabase';
 import { 
   GameSession, 
-  AbilityUsageLog,
   BattleEncounter
 } from '@/components/types';
 import type { DatabaseCharacter } from '@/lib/supabase';
