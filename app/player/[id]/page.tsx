@@ -15,6 +15,7 @@ import CharacterHeader from '../../../components/player/CharacterHeader';
 import ResourcesGrid from '../../../components/player/ResourcesGrid';
 import AbilitiesSection from '../../../components/player/AbilitiesSection';
 import FloatingTextList from '../../../components/common/FloatingText';
+import { calculateDamageWithResistance, formatDamageInfo, getDamageTypeIcon } from '../../../lib/damageCalculation';
 
 // Import types
 import type { 
@@ -969,6 +970,7 @@ export default function PlayerPage() {
 
   const [abilities, setAbilities] = useState<Ability[]>([]);
   const [isLoadingAbilities, setIsLoadingAbilities] = useState(true);
+  const [manaRegen, setManaRegen] = useState<number>(10); // Store mana regen separately
   const [activeGameSession, setActiveGameSession] = useState<string | null>(null);
   const [currentGameTurn, setCurrentGameTurn] = useState<number>(1);
   const [battleEnemies, setBattleEnemies] = useState<BattleEncounter[]>([]);
@@ -1045,6 +1047,8 @@ export default function PlayerPage() {
 
       setCharacter(character);
       setResources(resources);
+      // Store mana regen (default to 10 if not set)
+      setManaRegen(data.mana_regen || 10);
     } catch (error) {
       console.error('Failed to load character:', error);
       setCharacterError('Unexpected error occurred');
@@ -1326,38 +1330,7 @@ export default function PlayerPage() {
     }
   }, [character, checkActiveGameSession]);
 
-  // Calculate damage from ability string (e.g., "2d6+3" or "15")
-  const calculateDamage = (damageString: string): number => {
-    if (!damageString) return 0;
-    
-    // Handle simple number (e.g., "15")
-    const simpleNumber = parseInt(damageString);
-    if (!isNaN(simpleNumber)) {
-      return simpleNumber;
-    }
-    
-    // Handle dice notation (e.g., "2d6+3")
-    const diceMatch = damageString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
-    if (diceMatch) {
-      const [, numDice, diceSize, bonus] = diceMatch;
-      let total = 0;
-      
-      // Roll dice
-      for (let i = 0; i < parseInt(numDice); i++) {
-        total += Math.floor(Math.random() * parseInt(diceSize)) + 1;
-      }
-      
-      // Add bonus
-      if (bonus) {
-        total += parseInt(bonus);
-      }
-      
-      return total;
-    }
-    
-    // Fallback to 0 if can't parse
-    return 0;
-  };
+  // Calculate damage using the enhanced damage system
 
   // Log ability usage to database for GM tracking
   const logAbilityUsage = async (ability: Ability, effectDescription: string, targetDescription?: string, actualDamage?: number) => {
@@ -1443,6 +1416,20 @@ export default function PlayerPage() {
     })));
   };
 
+  // Reset Action Points and regenerate mana when turn advances
+  const resetActionPoints = () => {
+    setResources(prev => ({
+      ...prev,
+      actionPoints: {
+        ...prev.actionPoints,
+        current: prev.actionPoints.max
+      }
+    }));
+  };
+
+  // Note: Mana regeneration is handled automatically by the database 
+  // when the GM advances turns, so no client-side function is needed
+
   // Listen for turn advance events from GM
   useEffect(() => {
     if (!supabase || !activeGameSession) return;
@@ -1462,9 +1449,11 @@ export default function PlayerPage() {
         if (payload.new && payload.new.current_turn) {
           const newTurn = payload.new.current_turn;
           if (newTurn > currentGameTurn) {
-            console.log(`🎯 Turn advanced from ${currentGameTurn} to ${newTurn}, reducing cooldowns`);
+            console.log(`🎯 Turn advanced from ${currentGameTurn} to ${newTurn}, reducing cooldowns, resetting Action Points, and regenerating mana`);
             setCurrentGameTurn(newTurn);
             reduceCooldowns();
+            resetActionPoints();
+            // Note: Mana regen will be handled by the database and session refresh
             // Refresh session data when turn advances
             if (activeGameSession) {
               loadSessionData(activeGameSession);
@@ -1489,6 +1478,8 @@ export default function PlayerPage() {
           console.log(`🔄 Polling detected turn advance from ${currentGameTurn} to ${data.current_turn}`);
           setCurrentGameTurn(data.current_turn);
           reduceCooldowns();
+          resetActionPoints();
+          // Note: Mana regen will be handled by the database and session refresh
           // Refresh session data when turn advances
           if (activeGameSession) {
             loadSessionData(activeGameSession);
@@ -1597,16 +1588,28 @@ export default function PlayerPage() {
       }
     }));
 
-    // Calculate actual damage and apply to targets
-    const actualDamage = ability.damage ? calculateDamage(ability.damage) : 0;
+    // Calculate actual damage with resistance
     let effectDescription = '';
     let targetDescription = '';
+    let actualDamage = 0; // Default damage amount
 
     if (selectedTarget && selectedTarget.startsWith('enemy_')) {
       const encounterId = selectedTarget.replace('enemy_', '');
       const targetEnemy = battleEnemies.find(e => e.encounter_id === encounterId);
       
-      if (targetEnemy && actualDamage > 0 && supabase) {
+      if (targetEnemy && ability.damage && supabase) {
+        // Calculate damage with enemy's armor/magic resistances
+        const damageInfo = calculateDamageWithResistance(
+          ability.damage,
+          { 
+            armor_current: targetEnemy.armor_value || targetEnemy.defense || 0,
+            magic_resist_current: targetEnemy.magic_resist_value || 0
+          },
+          ability
+        );
+        
+        actualDamage = damageInfo.finalDamage;
+        
         // Apply damage to enemy
         const newHealth = Math.max(0, targetEnemy.enemy_health_current - actualDamage);
         
@@ -1619,7 +1622,8 @@ export default function PlayerPage() {
           .eq('id', encounterId);
 
         if (!enemyUpdateError) {
-          effectDescription = `Dealt ${actualDamage} damage to ${targetEnemy.enemy_name}`;
+          const damageTypeIcon = getDamageTypeIcon(damageInfo.damageType);
+          effectDescription = `${damageTypeIcon} ${formatDamageInfo(damageInfo)} to ${targetEnemy.enemy_name}`;
           targetDescription = targetEnemy.enemy_name || 'Unknown Enemy';
           
           if (newHealth <= 0) {
@@ -1832,7 +1836,7 @@ export default function PlayerPage() {
         
         <CharacterHeader character={character} resources={resources} />
         
-        <ResourcesGrid resources={resources} />
+        <ResourcesGrid resources={resources} manaRegen={manaRegen} />
 
         <MainLayout $hasActiveSession={!!activeGameSession}>
           <MainContent>

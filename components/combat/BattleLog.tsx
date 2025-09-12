@@ -46,7 +46,7 @@ const LogHeader = styled.h3`
 const LogContent = styled.div`
   flex: 1;
   overflow-y: auto;
-  max-height: 400px;
+  max-height: calc(100vh - 400px);
   padding-right: ${props => props.theme.spacing.sm};
 
   /* Custom scrollbar */

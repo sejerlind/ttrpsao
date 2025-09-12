@@ -12,6 +12,7 @@ import {
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import EnemyManager from '@/components/admin/EnemyManager';
+import MonsterCreator from '@/components/admin/MonsterCreator';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -663,7 +664,7 @@ export default function GMPage() {
       // Reload sessions to get updated data
       loadGameSessions();
       
-      alert(`Turn advanced to ${newTurn}! All player cooldowns reduced.`);
+      alert(`Turn advanced to ${newTurn}! All player cooldowns reduced, Action Points reset, and mana regenerated.`);
     } catch (error) {
       console.error('❌ Unexpected error advancing turn:', error);
       alert('Failed to advance turn');
@@ -725,6 +726,27 @@ export default function GMPage() {
             </NextTurnButton>
           </TurnControlPanel>
         )}
+
+      {/* Monster Creator - Always available */}
+      <MonsterCreator 
+        onMonsterCreated={() => {
+          console.log('New monster created!');
+          // Refresh data if needed
+        }}
+      />
+
+      {/* Enemy Manager - Only show if there's an active session */}
+      {activeSession && activeSession.status === 'active' && (
+        <div style={{ marginBottom: '2rem' }}>
+          <EnemyManager 
+            gameSessionId={activeSession.id}
+            onEnemyAdded={() => {
+              console.log('Enemy added to battle!');
+              // Optionally refresh data here
+            }}
+          />
+        </div>
+      )}
 
       <GMDashboard>
         <DashboardCard>
@@ -814,19 +836,6 @@ export default function GMPage() {
           )}
         </DashboardCard>
       </GMDashboard>
-
-      {/* Enemy Manager - Only show if there's an active session */}
-      {activeSession && activeSession.status === 'active' && (
-        <div style={{ marginTop: '2rem' }}>
-          <EnemyManager 
-            gameSessionId={activeSession.id}
-            onEnemyAdded={() => {
-              console.log('Enemy added to battle!');
-              // Optionally refresh data here
-            }}
-          />
-        </div>
-      )}
 
       {/* Create Game Session Modal */}
       <Modal 

@@ -11,6 +11,7 @@ interface Resources {
 
 interface ResourcesGridProps {
   resources: Resources;
+  manaRegen?: number; // Optional mana regeneration to display
 }
 
 const GridContainer = styled.div`
@@ -20,7 +21,7 @@ const GridContainer = styled.div`
   margin-bottom: ${props => props.theme.spacing.xl};
 `;
 
-export default function ResourcesGrid({ resources }: ResourcesGridProps) {
+export default function ResourcesGrid({ resources, manaRegen }: ResourcesGridProps) {
   return (
     <GridContainer>
       <ResourceBar
@@ -34,6 +35,7 @@ export default function ResourcesGrid({ resources }: ResourcesGridProps) {
         current={resources.mana.current}
         max={resources.mana.max}
         type="mana"
+        additionalInfo={manaRegen ? `+${manaRegen} per turn` : undefined}
       />
       <ResourceBar
         name="Stamina"

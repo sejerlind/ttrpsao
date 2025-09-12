@@ -285,6 +285,15 @@ export default function PartyViewer({ players }: PartyViewerProps) {
                     <div className="resource-bar">
                       <div className="resource-fill" />
                     </div>
+                    <div style={{ 
+                      fontSize: '0.75rem', 
+                      color: 'rgba(255, 255, 255, 0.6)', 
+                      textAlign: 'center', 
+                      marginTop: '2px',
+                      fontStyle: 'italic'
+                    }}>
+                      +{player.mana_regen || 10}/turn
+                    </div>
                   </ResourceBar>
 
                   <ResourceBar $percentage={staminaPercentage} $type="stamina">

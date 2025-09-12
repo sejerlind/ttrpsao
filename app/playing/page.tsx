@@ -800,6 +800,15 @@ export default function PlayingScreen() {
                             }}
                           />
                         </div>
+                        <div style={{ 
+                          fontSize: '0.8rem', 
+                          color: 'rgba(255, 255, 255, 0.7)', 
+                          textAlign: 'center', 
+                          marginTop: '4px',
+                          fontStyle: 'italic'
+                        }}>
+                          +{player.mana_regen || 10} per turn
+                        </div>
                       </ResourceBar>
 
                       <ResourceBar $type="stamina">

@@ -50,6 +50,7 @@ export interface DatabaseCharacter {
   action_points_max: number
   armor_current: number
   magic_resist_current: number
+  mana_regen?: number
   created_at?: string
   updated_at?: string
 }

@@ -211,6 +211,8 @@ export interface Enemy {
   attack_power: number;
   defense: number;
   speed: number;
+  armor_value?: number;
+  magic_resist_value?: number;
   experience_reward: number;
   gold_reward: number;
   description: string;
@@ -238,6 +240,8 @@ export interface BattleEncounter {
   attack_power?: number;
   defense?: number;
   speed?: number;
+  armor_value?: number;
+  magic_resist_value?: number;
   enemy_description?: string;
   sprite_url?: string;
 }

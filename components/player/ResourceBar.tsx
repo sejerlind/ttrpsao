@@ -5,6 +5,7 @@ interface ResourceBarProps {
   current: number;
   max?: number;
   type: 'health' | 'mana' | 'stamina' | 'armor' | 'magic-resist';
+  additionalInfo?: string; // For things like mana regen
 }
 
 const BarContainer = styled.div`
@@ -31,6 +32,14 @@ const BarContainer = styled.div`
       font-weight: bold;
       color: ${props => props.theme.colors.text.accent};
     }
+  }
+
+  .additional-info {
+    font-size: 0.8rem;
+    color: ${props => props.theme.colors.text.secondary};
+    margin-top: ${props => props.theme.spacing.xs};
+    text-align: center;
+    font-style: italic;
   }
 `;
 
@@ -62,7 +71,7 @@ const getResourcePercentage = (current: number, max: number): number => {
   return Math.min((current / max) * 100, 100);
 };
 
-export default function ResourceBar({ name, current, max, type }: ResourceBarProps) {
+export default function ResourceBar({ name, current, max, type, additionalInfo }: ResourceBarProps) {
   const isProgressBar = max !== undefined;
   
   return (
@@ -89,6 +98,11 @@ export default function ResourceBar({ name, current, max, type }: ResourceBarPro
           color: type === 'armor' ? '#f59e0b' : '#8b5fd6'
         }}>
           {current}
+        </div>
+      )}
+      {additionalInfo && (
+        <div className="additional-info">
+          {additionalInfo}
         </div>
       )}
     </BarContainer>

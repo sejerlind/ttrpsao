@@ -4,6 +4,7 @@ import { DatabaseCharacter, supabase } from '@/lib/supabase';
 import { BattleEncounter, Ability, FloatingTextItem } from '@/components/types';
 import Button from '@/components/ui/Button';
 import FloatingText from '@/components/common/FloatingText';
+import { calculateDamageWithResistance, formatDamageInfo, getDamageTypeIcon } from '@/lib/damageCalculation';
 
 const BattleContainer = styled.div`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -886,39 +887,6 @@ export default function PokemonBattle({
     setSelectedTarget(null);
   };
 
-  // Calculate damage from ability string (e.g., "2d6+3" or "15")
-  const calculateDamage = (damageString: string): number => {
-    if (!damageString) return 0;
-    
-    // Handle simple number (e.g., "15")
-    const simpleNumber = parseInt(damageString);
-    if (!isNaN(simpleNumber)) {
-      return simpleNumber;
-    }
-    
-    // Handle dice notation (e.g., "2d6+3")
-    const diceMatch = damageString.match(/(\d+)d(\d+)(?:\+(\d+))?/);
-    if (diceMatch) {
-      const [, numDice, diceSize, bonus] = diceMatch;
-      let total = 0;
-      
-      // Roll dice
-      for (let i = 0; i < parseInt(numDice); i++) {
-        total += Math.floor(Math.random() * parseInt(diceSize)) + 1;
-      }
-      
-      // Add bonus
-      if (bonus) {
-        total += parseInt(bonus);
-      }
-      
-      return total;
-    }
-    
-    // Fallback to 0 if can't parse
-    return 0;
-  };
-
   // Execute combat action
   const executeAction = async () => {
     if (!selectedCharacter || !selectedAbility || !selectedTarget || !gameSessionId || !supabase) return;
@@ -926,18 +894,28 @@ export default function PokemonBattle({
     setIsExecutingAction(true);
 
     try {
-      // Calculate actual damage
-      const actualDamage = selectedAbility.damage ? calculateDamage(selectedAbility.damage) : 0;
-      
       // Determine target type and apply damage
       let targetDescription = '';
       let effectDescription = '';
+      let actualDamage = 0; // Default damage amount
       
       if (selectedTarget.startsWith('enemy_')) {
         const encounterId = selectedTarget.replace('enemy_', '');
         const targetEnemy = enemies.find(e => e.encounter_id === encounterId);
         
-        if (targetEnemy && actualDamage > 0) {
+        if (targetEnemy && selectedAbility.damage) {
+          // Calculate damage with enemy's armor/magic resistances
+          const damageInfo = calculateDamageWithResistance(
+            selectedAbility.damage,
+            { 
+              armor_current: targetEnemy.armor_value || targetEnemy.defense || 0,
+              magic_resist_current: targetEnemy.magic_resist_value || 0
+            },
+            selectedAbility
+          );
+          
+          actualDamage = damageInfo.finalDamage;
+          
           // Apply damage to enemy
           const newHealth = Math.max(0, targetEnemy.enemy_health_current - actualDamage);
           
@@ -952,11 +930,12 @@ export default function PokemonBattle({
           if (enemyUpdateError) {
             console.error('Error updating enemy health:', enemyUpdateError);
           } else {
-            console.log(`✅ Dealt ${actualDamage} damage to ${targetEnemy.enemy_name}. HP: ${newHealth}/${targetEnemy.enemy_health_max}`);
+            console.log(`✅ ${formatDamageInfo(damageInfo)} to ${targetEnemy.enemy_name}. HP: ${newHealth}/${targetEnemy.enemy_health_max}`);
           }
           
           targetDescription = `${targetEnemy.enemy_name || 'Enemy'}`;
-          effectDescription = `Dealt ${actualDamage} damage to ${targetEnemy.enemy_name}`;
+          const damageTypeIcon = getDamageTypeIcon(damageInfo.damageType);
+          effectDescription = `${damageTypeIcon} ${formatDamageInfo(damageInfo)} to ${targetEnemy.enemy_name}`;
           
           // Check if enemy died
           if (newHealth <= 0) {
