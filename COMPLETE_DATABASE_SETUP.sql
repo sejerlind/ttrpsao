@@ -287,8 +287,8 @@ BEGIN
     WHERE gsp.game_session_id = session_id AND gsp.is_active = true;
     
     -- Log the turn advance event
-    INSERT INTO game_events (game_session_id, event_type, event_description, turn_occurred)
-    VALUES (session_id, 'turn_advance', 'Turn advanced - Action Points reset and mana regenerated', current_turn_num + 1);
+    INSERT INTO game_events (game_session_id, event_type, event_description, turn_occurred, created_at)
+    VALUES (session_id, 'turn_advance', 'Turn advanced - Action Points reset and mana regenerated', current_turn_num + 1, NOW());
     
     -- Return results
     RETURN QUERY SELECT 

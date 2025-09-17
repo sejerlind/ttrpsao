@@ -102,8 +102,9 @@ export enum SkillCategory {
 
 export interface PlayerProgression {
   totalLevel: number;
-  skillPoints: number;
-  unspentSkillPoints: number;
+  skillPoints: number; // Total skill points earned from leveling (level * 2)
+  unspentSkillPoints: number; // Available skill points to spend
+  levelSkillPoints: number; // Skill points from level alone (level * 2)
   talentPoints: number;
   unspentTalentPoints: number;
   skillTrees: Record<SkillTreeType, SkillTreeProgress>;

@@ -1,25 +1,32 @@
+// src/components/TechTree.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { 
-  SkillNode, 
-  SkillTreeType, 
-  SkillCategory, 
+import {
+  SkillNode,
+  SkillTreeType,
   PlayerProgression,
 } from '../types';
+import { calculateTreePositions, mapDsToSkillNodes, DsRow } from '../../app/utils/skillMappers';
 
 interface TechTreeProps {
   playerProgression: PlayerProgression;
-  skills?: SkillNode[]; // Optional skills data from database
+  /**
+   * Pass EITHER:
+   *  - `skills`: already-shaped SkillNode[] (positions will be recalculated)
+   *  - `dsRows`: your raw DS rows (we'll map + position them)
+   */
+  skills?: SkillNode[];
+  dsRows?: DsRow[];
   onSkillUpgrade: (skillId: string) => void;
   onSkillPreview: (skill: SkillNode | null) => void;
 }
 
 const TechTreeContainer = styled.div`
-  background: ${props => props.theme.gradients.background};
-  border-radius: ${props => props.theme.borderRadius.large};
-  padding: ${props => props.theme.spacing.xl};
+  background: ${(p) => p.theme.gradients.background};
+  border-radius: ${(p) => p.theme.borderRadius.large};
+  padding: ${(p) => p.theme.spacing.xl};
   position: relative;
   overflow: hidden;
   min-height: 600px;
@@ -29,17 +36,17 @@ const TreeHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: ${props => props.theme.spacing.xl};
-  padding-bottom: ${props => props.theme.spacing.lg};
-  border-bottom: 2px solid ${props => props.theme.colors.accent.cyan};
+  margin-bottom: ${(p) => p.theme.spacing.xl};
+  padding-bottom: ${(p) => p.theme.spacing.lg};
+  border-bottom: 2px solid ${(p) => p.theme.colors.accent.cyan};
 
   h2 {
-    color: ${props => props.theme.colors.text.accent};
+    color: ${(p) => p.theme.colors.text.accent};
     font-size: 2rem;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: ${props => props.theme.spacing.md};
+    gap: ${(p) => p.theme.spacing.md};
 
     &::before {
       content: '🌟';
@@ -50,51 +57,51 @@ const TreeHeader = styled.div`
 
 const ProgressionStats = styled.div`
   display: flex;
-  gap: ${props => props.theme.spacing.lg};
-  
+  gap: ${(p) => p.theme.spacing.lg};
+
   .stat {
-    background: ${props => props.theme.gradients.card};
-    border: ${props => props.theme.borders.card};
-    border-radius: ${props => props.theme.borderRadius.medium};
-    padding: ${props => props.theme.spacing.md};
+    background: ${(p) => p.theme.gradients.card};
+    border: ${(p) => p.theme.borders.card};
+    border-radius: ${(p) => p.theme.borderRadius.medium};
+    padding: ${(p) => p.theme.spacing.md};
     text-align: center;
     min-width: 120px;
 
     .label {
       font-size: 0.8rem;
-      color: ${props => props.theme.colors.text.muted};
+      color: ${(p) => p.theme.colors.text.muted};
       text-transform: uppercase;
       letter-spacing: 0.5px;
-      margin-bottom: ${props => props.theme.spacing.xs};
+      margin-bottom: ${(p) => p.theme.spacing.xs};
     }
 
     .value {
       font-size: 1.5rem;
       font-weight: bold;
-      color: ${props => props.theme.colors.accent.cyan};
+      color: ${(p) => p.theme.colors.accent.cyan};
     }
   }
 `;
 
 const TreeFilters = styled.div`
   display: flex;
-  gap: ${props => props.theme.spacing.md};
-  margin-bottom: ${props => props.theme.spacing.xl};
+  gap: ${(p) => p.theme.spacing.md};
+  margin-bottom: ${(p) => p.theme.spacing.xl};
   flex-wrap: wrap;
 `;
 
 const FilterButton = styled.button<{ $active: boolean }>`
-  background: ${props => props.$active ? props.theme.colors.accent.cyan : props.theme.colors.surface.card};
-  color: ${props => props.$active ? props.theme.colors.primary.bg : props.theme.colors.text.primary};
-  border: 1px solid ${props => props.$active ? props.theme.colors.accent.cyan : props.theme.colors.surface.border};
-  border-radius: ${props => props.theme.borderRadius.medium};
-  padding: ${props => props.theme.spacing.sm} ${props => props.theme.spacing.lg};
+  background: ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.card)};
+  color: ${(p) => (p.$active ? p.theme.colors.primary.bg : p.theme.colors.text.primary)};
+  border: 1px solid ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.border)};
+  border-radius: ${(p) => p.theme.borderRadius.medium};
+  padding: ${(p) => p.theme.spacing.sm} ${(p) => p.theme.spacing.lg};
   cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 500;
 
   &:hover {
-    background: ${props => props.$active ? props.theme.colors.accent.cyan : props.theme.colors.surface.hover};
+    background: ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.hover)};
     transform: translateY(-2px);
   }
 `;
@@ -102,29 +109,167 @@ const FilterButton = styled.button<{ $active: boolean }>`
 const TreeCanvas = styled.div`
   position: relative;
   width: 100%;
-  height: 800px;
-  background: linear-gradient(45deg, 
-    ${props => props.theme.colors.primary.bg} 0%, 
-    ${props => props.theme.colors.primary.secondary} 100%);
-  border-radius: ${props => props.theme.borderRadius.large};
+  min-height: 1000px;
+  min-width: 100%;
+  background:
+    linear-gradient(45deg,
+      ${(p) => p.theme.colors.primary.bg} 0%,
+      ${(p) => p.theme.colors.primary.secondary} 100%),
+    radial-gradient(circle at 20% 50%, rgba(59,130,246,0.1) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(16,185,129,0.1) 0%, transparent 50%),
+    radial-gradient(circle at 40% 80%, rgba(139,92,246,0.1) 0%, transparent 50%);
+  border-radius: ${(p) => p.theme.borderRadius.large};
   overflow: auto;
-  border: 2px solid ${props => props.theme.colors.surface.border};
+  border: 2px solid ${(p) => p.theme.colors.surface.border};
+  padding: 40px;
+
+  isolation: isolate;
+
+  &::-webkit-scrollbar { width: 12px; height: 12px; }
+  &::-webkit-scrollbar-track {
+    background: ${(p) => p.theme.colors.surface.dark};
+    border-radius: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: ${(p) => p.theme.colors.accent.cyan};
+    border-radius: 6px;
+    border: 2px solid ${(p) => p.theme.colors.surface.dark};
+  }
+  &::-webkit-scrollbar-thumb:hover { background: ${(p) => p.theme.colors.accent.cyan}cc; }
+
 `;
 
-const SkillNodeComponent = styled.div<{ 
-  $tier: number; 
-  $isUnlocked: boolean; 
+const TreeSection = styled.div<{ $treeType: string }>`
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 600px;
+  
+  ${(p) => p.$treeType === 'combat' && `
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(251, 191, 36, 0.1) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(245, 158, 11, 0.1) 0%, transparent 40%);
+  `}
+  
+  ${(p) => p.$treeType === 'magic' && `
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(139, 95, 214, 0.1) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(124, 58, 237, 0.1) 0%, transparent 40%);
+  `}
+  
+  ${(p) => p.$treeType === 'crafting' && `
+    background: 
+      radial-gradient(circle at 20% 30%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
+      radial-gradient(circle at 80% 70%, rgba(5, 150, 105, 0.1) 0%, transparent 40%);
+  `}
+`;
+
+const TreeTitle = styled.div<{ $treeType: string }>`
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: ${(p) => p.theme.gradients.card};
+  border: 2px solid ${(p) => {
+    switch (p.$treeType) {
+      case 'combat': return '#f59e0b';
+      case 'magic': return '#8b5fd6';
+      case 'crafting': return '#10b981';
+      default: return p.theme.colors.surface.border;
+    }
+  }};
+  border-radius: ${(p) => p.theme.borderRadius.medium};
+  padding: ${(p) => p.theme.spacing.md} ${(p) => p.theme.spacing.lg};
+  color: ${(p) => p.theme.colors.text.accent};
+  font-size: 1.5rem;
+  font-weight: bold;
+  z-index: 100;
+  box-shadow: ${(p) => p.theme.shadows.cardHover};
+  
+  &::before {
+    content: ${(p) => {
+      switch (p.$treeType) {
+        case 'combat': return '"⚔️"';
+        case 'magic': return '"🔮"';
+        case 'crafting': return '"🔨"';
+        default: return '""';
+      }
+    }};
+    margin-right: ${(p) => p.theme.spacing.sm};
+  }
+`;
+
+const TreeStats = styled.div<{ $treeType: string }>`
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: ${(p) => p.theme.spacing.md};
+  z-index: 100;
+  
+  .stat {
+    background: ${(p) => p.theme.gradients.card};
+    border: 1px solid ${(p) => {
+      switch (p.$treeType) {
+        case 'combat': return '#f59e0b';
+        case 'magic': return '#8b5fd6';
+        case 'crafting': return '#10b981';
+        default: return p.theme.colors.surface.border;
+      }
+    }};
+    border-radius: ${(p) => p.theme.borderRadius.small};
+    padding: ${(p) => p.theme.spacing.sm};
+    text-align: center;
+    min-width: 80px;
+    
+    .label {
+      font-size: 0.7rem;
+      color: ${(p) => p.theme.colors.text.muted};
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .value {
+      font-size: 1rem;
+      font-weight: bold;
+      color: ${(p) => {
+        switch (p.$treeType) {
+          case 'combat': return '#f59e0b';
+          case 'magic': return '#8b5fd6';
+          case 'crafting': return '#10b981';
+          default: return p.theme.colors.accent.cyan;
+        }
+      }};
+    }
+  }
+`;
+
+const SkillConnection = styled.line<{ $isActive: boolean; $treeType: string }>`
+  stroke: ${(p) => p.$isActive ? '#fbbf24' : '#4b5563'};
+  stroke-width: ${(p) => p.$isActive ? 3 : 2};
+  stroke-dasharray: ${(p) => p.$isActive ? 'none' : '5,5'};
+  opacity: ${(p) => p.$isActive ? 1 : 0.5};
+  transition: all 0.3s ease;
+  z-index: 5;
+  
+  ${(p) => p.$isActive && `
+    filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.6));
+  `}
+`;
+
+const SkillNodeComponent = styled.div<{
+  $tier: number;
+  $isUnlocked: boolean;
   $isMaxed: boolean;
   $canUpgrade: boolean;
+  $canUnlock: boolean;
   $position: { x: number; y: number };
+  $skillTree: SkillTreeType;
 }>`
-  position: absolute;
-  left: ${props => props.$position.x * 150 + 50}px;
-  top: ${props => props.$position.y * 120 + 50}px;
   width: 80px;
   height: 80px;
-  border-radius: ${props => props.theme.borderRadius.large};
-  cursor: ${props => props.$canUpgrade ? 'pointer' : 'default'};
+  cursor: ${(p) => (p.$canUpgrade || p.$canUnlock ? 'pointer' : 'default')};
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
@@ -132,50 +277,130 @@ const SkillNodeComponent = styled.div<{
   justify-content: center;
   font-size: 1.8rem;
   position: relative;
-  
-  background: ${props => {
-    if (!props.$isUnlocked) return 'linear-gradient(145deg, #374151, #1f2937)';
-    if (props.$isMaxed) return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
-    if (props.$canUpgrade) return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
-    return 'linear-gradient(145deg, #10b981, #059669)';
+  z-index: 10;
+  will-change: transform;
+  backface-visibility: hidden;
+  border-radius: 12px;
+
+  background: ${(p) => {
+    if (!p.$isUnlocked) {
+      // Locked skills - different colors based on whether they can be unlocked
+      if (p.$canUnlock) {
+        // Can be unlocked - bright, inviting colors
+        switch (p.$skillTree) {
+          case SkillTreeType.COMBAT: return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
+          case SkillTreeType.MAGIC: return 'linear-gradient(145deg, #8b5fd6, #7c3aed)';
+          case SkillTreeType.DEFENSIVE: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
+          case SkillTreeType.CRAFTING: return 'linear-gradient(145deg, #10b981, #059669)';
+          case SkillTreeType.EXPLORATION: return 'linear-gradient(145deg, #06b6d4, #0891b2)';
+          case SkillTreeType.SOCIAL: return 'linear-gradient(145deg, #ec4899, #db2777)';
+          default: return 'linear-gradient(145deg, #10b981, #059669)';
+        }
+      } else {
+        // Cannot be unlocked - dark, muted colors
+        return 'linear-gradient(145deg, #374151, #1f2937)';
+      }
+    }
+    if (p.$isMaxed) {
+      // Maxed skills - bright, completed colors
+      switch (p.$skillTree) {
+        case SkillTreeType.COMBAT: return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
+        case SkillTreeType.MAGIC: return 'linear-gradient(145deg, #8b5fd6, #7c3aed)';
+        case SkillTreeType.DEFENSIVE: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
+        case SkillTreeType.CRAFTING: return 'linear-gradient(145deg, #10b981, #059669)';
+        case SkillTreeType.EXPLORATION: return 'linear-gradient(145deg, #06b6d4, #0891b2)';
+        case SkillTreeType.SOCIAL: return 'linear-gradient(145deg, #ec4899, #db2777)';
+        default: return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
+      }
+    }
+    if (p.$canUpgrade) {
+      // Can be upgraded - bright, active colors
+      switch (p.$skillTree) {
+        case SkillTreeType.COMBAT: return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
+        case SkillTreeType.MAGIC: return 'linear-gradient(145deg, #8b5fd6, #7c3aed)';
+        case SkillTreeType.DEFENSIVE: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
+        case SkillTreeType.CRAFTING: return 'linear-gradient(145deg, #10b981, #059669)';
+        case SkillTreeType.EXPLORATION: return 'linear-gradient(145deg, #06b6d4, #0891b2)';
+        case SkillTreeType.SOCIAL: return 'linear-gradient(145deg, #ec4899, #db2777)';
+        default: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
+      }
+    }
+    // Default unlocked but not upgradeable
+    switch (p.$skillTree) {
+      case SkillTreeType.COMBAT: return 'linear-gradient(145deg, #fbbf24, #f59e0b)';
+      case SkillTreeType.MAGIC: return 'linear-gradient(145deg, #8b5fd6, #7c3aed)';
+      case SkillTreeType.DEFENSIVE: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
+      case SkillTreeType.CRAFTING: return 'linear-gradient(145deg, #10b981, #059669)';
+      case SkillTreeType.EXPLORATION: return 'linear-gradient(145deg, #06b6d4, #0891b2)';
+      case SkillTreeType.SOCIAL: return 'linear-gradient(145deg, #ec4899, #db2777)';
+      default: return 'linear-gradient(145deg, #10b981, #059669)';
+    }
   }};
 
-  border: 3px solid ${props => {
-    if (!props.$isUnlocked) return '#4b5563';
-    if (props.$isMaxed) return '#d97706';
-    if (props.$canUpgrade) return '#1e40af';
-    return '#047857';
+  border: 3px solid ${(p) => {
+    if (!p.$isUnlocked) {
+      if (p.$canUnlock) return '#10b981'; // Green border for unlockable skills
+      return '#4b5563'; // Gray border for locked skills
+    }
+    if (p.$isMaxed) return '#d97706'; // Orange border for maxed skills
+    if (p.$canUpgrade) return '#1e40af'; // Blue border for upgradeable skills
+    return '#047857'; // Default green border
   }};
 
-  box-shadow: ${props => {
-    if (!props.$isUnlocked) return '0 4px 6px rgba(0, 0, 0, 0.3)';
-    if (props.$isMaxed) return '0 0 20px rgba(251, 191, 36, 0.5)';
-    if (props.$canUpgrade) return '0 0 15px rgba(59, 130, 246, 0.4)';
-    return '0 4px 6px rgba(0, 0, 0, 0.1)';
+  box-shadow: ${(p) => {
+    if (!p.$isUnlocked) {
+      if (p.$canUnlock) return '0 0 15px rgba(16, 185, 129, 0.4)'; // Green glow for unlockable skills
+      return '0 4px 6px rgba(0, 0, 0, 0.3)'; // Dark shadow for locked skills
+    }
+    if (p.$isMaxed) return '0 0 20px rgba(251, 191, 36, 0.5)'; // Orange glow for maxed skills
+    if (p.$canUpgrade) return '0 0 15px rgba(59, 130, 246, 0.4)'; // Blue glow for upgradeable skills
+    return '0 4px 6px rgba(0, 0, 0, 0.1)'; // Default shadow
   }};
 
-  opacity: ${props => props.$isUnlocked ? 1 : 0.5};
+  opacity: ${(p) => {
+    if (p.$isUnlocked) return 1;
+    if (p.$canUnlock) return 0.8; // More visible for unlockable skills
+    return 0.5; // Less visible for locked skills
+  }};
 
   &:hover {
-    transform: ${props => props.$isUnlocked ? 'translateY(-4px) scale(1.1)' : 'none'};
-    z-index: 10;
-    
+    z-index: 20;
     .tooltip {
       opacity: 1;
       visibility: visible;
-      transform: translateY(-10px);
+      transform: translateY(-5px);
     }
   }
 
+  ${(p) =>
+    p.$canUpgrade &&
+    `
+    animation: pulse 3s infinite;
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+      100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+    }
+  `}
+
+  ${(p) =>
+    p.$canUnlock &&
+    `
+    animation: unlockPulse 2s infinite;
+    @keyframes unlockPulse {
+      0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      70% { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+  `}
+
   .tier-indicator {
     position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 24px;
-    height: 24px;
+    top: -10px; right: -10px;
+    width: 28px; height: 28px;
     border-radius: 50%;
-    background: ${props => {
-      switch(props.$tier) {
+    background: ${(p) => {
+      switch (p.$tier) {
         case 1: return 'linear-gradient(145deg, #94a3b8, #64748b)';
         case 2: return 'linear-gradient(145deg, #10b981, #059669)';
         case 3: return 'linear-gradient(145deg, #3b82f6, #1d4ed8)';
@@ -185,463 +410,385 @@ const SkillNodeComponent = styled.div<{
       }
     }};
     color: white;
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    border: 3px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
 
   .rank-indicator {
     position: absolute;
-    bottom: -8px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: ${props => props.theme.colors.primary.bg};
-    color: ${props => props.theme.colors.accent.cyan};
-    padding: 2px 8px;
-    border-radius: ${props => props.theme.borderRadius.pill};
-    font-size: 0.7rem;
-    font-weight: bold;
-    border: 1px solid ${props => props.theme.colors.accent.cyan};
+    bottom: -10px;
+    left: 50%; transform: translateX(-50%);
+    background: ${(p) => p.theme.colors.primary.bg};
+    color: ${(p) => p.theme.colors.accent.cyan};
+    padding: 3px 10px;
+    border-radius: ${(p) => p.theme.borderRadius.pill};
+    font-size: 0.8rem; font-weight: bold;
+    border: 2px solid ${(p) => p.theme.colors.accent.cyan};
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    min-width: 40px; text-align: center;
+  }
+
+  .unlock-indicator {
+    position: absolute;
+    top: -15px;
+    left: -15px;
+    background: #10b981;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    animation: unlockBounce 1.5s infinite;
+    
+    @keyframes unlockBounce {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+    }
+  }
+`;
+
+
+// Removed unused TierLine component
+
+const TierWrapper = styled.div`
+  position: absolute;
+  left: 50%;
+  right: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+`;
+
+const SkillHighlightOverlay = styled.div`
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: transparent;
+  border: 3px solid #dc2626;
+  border-radius: 14px;
+  z-index: 15;
+  animation: highlightPulse 0.6s ease-in-out infinite;
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.8);
+  
+  @keyframes highlightPulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.8;
+      border-color: #dc2626;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+      border-color: #ef4444;
+    }
   }
 `;
 
 const SkillTooltip = styled.div`
-  position: absolute;
-  bottom: 120%;
+  position: fixed;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  background: ${props => props.theme.gradients.card};
-  border: ${props => props.theme.borders.card};
-  border-radius: ${props => props.theme.borderRadius.medium};
-  padding: ${props => props.theme.spacing.lg};
-  white-space: nowrap;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.3s ease;
-  z-index: 1000;
-  min-width: 300px;
-  max-width: 400px;
+  transform: translate(-50%, -50%);
+  background: ${(p) => p.theme.gradients.card};
+  border: ${(p) => p.theme.borders.card};
+  border-radius: ${(p) => p.theme.borderRadius.medium};
+  padding: ${(p) => p.theme.spacing.md};
   white-space: normal;
-  box-shadow: ${props => props.theme.shadows.cardHover};
+  opacity: 0; visibility: hidden;
+  transition: all 0.2s ease;
+  z-index: 10000;
+  min-width: 250px; max-width: 300px;
+  box-shadow: ${(p) => p.theme.shadows.cardHover};
+  font-size: 0.9rem;
+  pointer-events: none;
 
   .skill-name {
     font-weight: bold;
-    color: ${props => props.theme.colors.text.accent};
+    color: ${(p) => p.theme.colors.text.accent};
     font-size: 1.1rem;
-    margin-bottom: ${props => props.theme.spacing.sm};
+    margin-bottom: ${(p) => p.theme.spacing.sm};
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
+  .skill-meta {
+    font-size: 0.8rem;
+    color: ${(p) => p.theme.colors.text.muted};
+    font-weight: normal;
+    font-style: italic;
+  }
   .skill-description {
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${(p) => p.theme.colors.text.secondary};
     font-size: 0.9rem;
-    margin-bottom: ${props => props.theme.spacing.md};
+    margin-bottom: ${(p) => p.theme.spacing.md};
     line-height: 1.4;
   }
-
   .skill-effects {
-    margin-bottom: ${props => props.theme.spacing.md};
-
+    margin-bottom: ${(p) => p.theme.spacing.md};
     .effect {
-      background: ${props => props.theme.colors.surface.dark};
-      padding: ${props => props.theme.spacing.xs} ${props => props.theme.spacing.sm};
-      border-radius: ${props => props.theme.borderRadius.small};
-      margin-bottom: ${props => props.theme.spacing.xs};
+      background: ${(p) => p.theme.colors.surface.dark};
+      padding: ${(p) => p.theme.spacing.xs} ${(p) => p.theme.spacing.sm};
+      border-radius: ${(p) => p.theme.borderRadius.small};
+      margin-bottom: ${(p) => p.theme.spacing.xs};
       font-size: 0.8rem;
-      border-left: 3px solid ${props => props.theme.colors.accent.cyan};
+      border-left: 3px solid ${(p) => p.theme.colors.accent.cyan};
     }
   }
-
   .skill-cost {
-    border-top: 1px solid ${props => props.theme.colors.surface.border};
-    padding-top: ${props => props.theme.spacing.sm};
+    border-top: 1px solid ${(p) => p.theme.colors.surface.border};
+    padding-top: ${(p) => p.theme.spacing.sm};
     font-size: 0.8rem;
-    color: ${props => props.theme.colors.text.muted};
+    color: ${(p) => p.theme.colors.text.muted};
+  }
+
+  .prerequisites {
+    margin-top: ${(p) => p.theme.spacing.sm};
+    padding-top: ${(p) => p.theme.spacing.sm};
+    border-top: 1px solid ${(p) => p.theme.colors.surface.border};
+  }
+
+  .prereq-title {
+    font-weight: bold;
+    font-size: 0.8rem;
+    margin-bottom: ${(p) => p.theme.spacing.xs};
+    color: ${(p) => p.theme.colors.text.accent};
+  }
+
+  .prereq-item {
+    font-size: 0.75rem;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .prereq-item.unlocked {
+    color: #10b981;
+  }
+
+  .prereq-item.missing {
+    color: #ef4444;
+  }
+
+  .skill-tree-tag {
+    font-size: 0.7rem;
+    color: ${(p) => p.theme.colors.text.muted};
+    font-style: italic;
+    margin-left: 4px;
+  }
+
+  .tier-tag {
+    font-size: 0.7rem;
+    background: ${(p) => p.theme.colors.surface.dark};
+    color: ${(p) => p.theme.colors.accent.cyan};
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-left: 4px;
+    font-weight: bold;
   }
 `;
 
-const ConnectionLine = styled.div<{ 
-  $from: { x: number; y: number }; 
-  $to: { x: number; y: number };
-  $isActive: boolean;
-}>`
-  position: absolute;
-  background: ${props => props.$isActive ? props.theme.colors.accent.cyan : props.theme.colors.surface.border};
-  height: 2px;
-  transform-origin: left center;
-  opacity: ${props => props.$isActive ? 0.8 : 0.3};
-  transition: all 0.3s ease;
-  
-  ${props => {
-    const deltaX = props.$to.x - props.$from.x;
-    const deltaY = props.$to.y - props.$from.y;
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY) * 150;
-    const angle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-    
-    return `
-      left: ${(props.$from.x * 150) + 50 + 40}px;
-      top: ${(props.$from.y * 120) + 50 + 40}px;
-      width: ${distance - 80}px;
-      transform: rotate(${angle}deg);
-    `;
-  }}
-`;
 
-// Sample skill data - this would normally come from your database
-const sampleSkillTrees: SkillNode[] = [
-  // Combat Tree
-  {
-    id: 'combat_basic_attack',
-    name: 'Basic Combat',
-    description: 'Foundation of all combat techniques. Increases basic attack damage and accuracy.',
-    icon: '⚔️',
-    tier: 1,
-    position: { x: 0, y: 0 },
-    skillTree: SkillTreeType.COMBAT,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'attack', value: 5, description: '+5 Attack per rank', scaling: 'linear' }
-    ]
-  },
-  {
-    id: 'combat_sword_mastery',
-    name: 'Sword Mastery',
-    description: 'Advanced sword combat techniques for increased damage and critical strikes.',
-    icon: '🗡️',
-    tier: 2,
-    position: { x: 1, y: 0 },
-    skillTree: SkillTreeType.COMBAT,
-    prerequisites: ['combat_basic_attack'],
-    cost: { skillPoints: 2, level: 5 },
-    maxRank: 3,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'crit_chance', value: 3, description: '+3% Crit Chance per rank' },
-      { type: 'stat_bonus', target: 'sword_damage', value: 10, description: '+10% Sword Damage per rank' }
-    ]
-  },
-  {
-    id: 'combat_berserker_rage',
-    name: 'Berserker Rage',
-    description: 'Enter a rage state for massive damage at the cost of defense.',
-    icon: '😡',
-    tier: 3,
-    position: { x: 2, y: 0 },
-    skillTree: SkillTreeType.COMBAT,
-    prerequisites: ['combat_sword_mastery'],
-    cost: { skillPoints: 4, level: 15 },
-    maxRank: 1,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.ACTIVE,
-    effects: [
-      { type: 'ability_unlock', target: 'berserker_rage', value: 1, description: 'Unlocks Berserker Rage ability' }
-    ]
-  },
-  {
-    id: 'combat_weapon_throw',
-    name: 'Weapon Throw',
-    description: 'Throw your weapon at enemies for ranged damage.',
-    icon: '🪃',
-    tier: 2,
-    position: { x: 1, y: 1 },
-    skillTree: SkillTreeType.COMBAT,
-    prerequisites: ['combat_basic_attack'],
-    cost: { skillPoints: 3, level: 8 },
-    maxRank: 1,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.ACTIVE,
-    effects: [
-      { type: 'ability_unlock', target: 'weapon_throw', value: 1, description: 'Unlocks Weapon Throw ability' }
-    ]
-  },
-
-  // Magic Tree
-  {
-    id: 'magic_basic_spells',
-    name: 'Basic Magic',
-    description: 'Foundation of magical knowledge and mana manipulation.',
-    icon: '🔮',
-    tier: 1,
-    position: { x: 0, y: 2 },
-    skillTree: SkillTreeType.MAGIC,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'mana', value: 20, description: '+20 Mana per rank' }
-    ]
-  },
-  {
-    id: 'magic_fireball',
-    name: 'Fireball',
-    description: 'Launch a devastating fireball at your enemies.',
-    icon: '🔥',
-    tier: 2,
-    position: { x: 1, y: 2 },
-    skillTree: SkillTreeType.MAGIC,
-    prerequisites: ['magic_basic_spells'],
-    cost: { skillPoints: 3, level: 8 },
-    maxRank: 1,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.ACTIVE,
-    effects: [
-      { type: 'ability_unlock', target: 'fireball', value: 1, description: 'Unlocks Fireball ability' }
-    ]
-  },
-  {
-    id: 'magic_ice_shard',
-    name: 'Ice Shard',
-    description: 'Freeze and damage enemies with ice magic.',
-    icon: '❄️',
-    tier: 2,
-    position: { x: 1, y: 3 },
-    skillTree: SkillTreeType.MAGIC,
-    prerequisites: ['magic_basic_spells'],
-    cost: { skillPoints: 3, level: 10 },
-    maxRank: 1,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.ACTIVE,
-    effects: [
-      { type: 'ability_unlock', target: 'ice_shard', value: 1, description: 'Unlocks Ice Shard ability' }
-    ]
-  },
-  {
-    id: 'magic_meteor',
-    name: 'Meteor',
-    description: 'Call down a massive meteor for devastating area damage.',
-    icon: '☄️',
-    tier: 4,
-    position: { x: 2, y: 2 },
-    skillTree: SkillTreeType.MAGIC,
-    prerequisites: ['magic_fireball'],
-    cost: { skillPoints: 8, level: 25, gold: 5000 },
-    maxRank: 1,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.ULTIMATE,
-    effects: [
-      { type: 'ability_unlock', target: 'meteor', value: 1, description: 'Unlocks Meteor ultimate ability' }
-    ]
-  },
-
-  // Defensive Tree
-  {
-    id: 'defense_basic_block',
-    name: 'Basic Defense',
-    description: 'Learn the fundamentals of blocking and damage reduction.',
-    icon: '🛡️',
-    tier: 1,
-    position: { x: 0, y: 4 },
-    skillTree: SkillTreeType.DEFENSIVE,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'block_chance', value: 5, description: '+5% Block Chance per rank' }
-    ]
-  },
-  {
-    id: 'defense_iron_skin',
-    name: 'Iron Skin',
-    description: 'Harden your skin to reduce incoming damage.',
-    icon: '🛡️',
-    tier: 2,
-    position: { x: 1, y: 4 },
-    skillTree: SkillTreeType.DEFENSIVE,
-    prerequisites: ['defense_basic_block'],
-    cost: { skillPoints: 2, level: 6 },
-    maxRank: 3,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'damage_reduction', value: 5, description: '+5% Damage Reduction per rank' }
-    ]
-  },
-
-  // Crafting Tree
-  {
-    id: 'crafting_basic_smithing',
-    name: 'Basic Smithing',
-    description: 'Learn to forge basic weapons and armor.',
-    icon: '🔨',
-    tier: 1,
-    position: { x: 0, y: 6 },
-    skillTree: SkillTreeType.CRAFTING,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'modifier', target: 'crafting_success', value: 10, description: '+10% Crafting Success Rate per rank' }
-    ]
-  },
-  {
-    id: 'crafting_enchanting',
-    name: 'Enchanting',
-    description: 'Imbue weapons and armor with magical properties.',
-    icon: '✨',
-    tier: 2,
-    position: { x: 1, y: 6 },
-    skillTree: SkillTreeType.CRAFTING,
-    prerequisites: ['crafting_basic_smithing'],
-    cost: { skillPoints: 3, level: 12 },
-    maxRank: 3,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'unlock_equipment', target: 'enchanted_gear', value: 1, description: 'Unlocks enchanted equipment crafting' }
-    ]
-  },
-
-  // Exploration Tree
-  {
-    id: 'exploration_pathfinding',
-    name: 'Pathfinding',
-    description: 'Navigate through difficult terrain with ease.',
-    icon: '🗺️',
-    tier: 1,
-    position: { x: 0, y: 8 },
-    skillTree: SkillTreeType.EXPLORATION,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 3,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'movement_speed', value: 10, description: '+10% Movement Speed per rank' }
-    ]
-  },
-  {
-    id: 'exploration_treasure_hunter',
-    name: 'Treasure Hunter',
-    description: 'Find hidden treasures and rare items.',
-    icon: '💎',
-    tier: 2,
-    position: { x: 1, y: 8 },
-    skillTree: SkillTreeType.EXPLORATION,
-    prerequisites: ['exploration_pathfinding'],
-    cost: { skillPoints: 2, level: 8 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'loot_find', value: 15, description: '+15% Better Loot Find per rank' }
-    ]
-  },
-
-  // Social Tree
-  {
-    id: 'social_charisma',
-    name: 'Charisma',
-    description: 'Improve your ability to influence others.',
-    icon: '💬',
-    tier: 1,
-    position: { x: 0, y: 10 },
-    skillTree: SkillTreeType.SOCIAL,
-    prerequisites: [],
-    cost: { skillPoints: 1, level: 1 },
-    maxRank: 5,
-    currentRank: 0,
-    isUnlocked: true,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'persuasion', value: 10, description: '+10% Persuasion Success per rank' }
-    ]
-  },
-  {
-    id: 'social_leadership',
-    name: 'Leadership',
-    description: 'Inspire allies and boost party performance.',
-    icon: '👑',
-    tier: 2,
-    position: { x: 1, y: 10 },
-    skillTree: SkillTreeType.SOCIAL,
-    prerequisites: ['social_charisma'],
-    cost: { skillPoints: 3, level: 10 },
-    maxRank: 3,
-    currentRank: 0,
-    isUnlocked: false,
-    isMaxed: false,
-    category: SkillCategory.PASSIVE,
-    effects: [
-      { type: 'stat_bonus', target: 'party_bonus', value: 5, description: '+5% Party Damage Bonus per rank' }
-    ]
-  }
-];
-
-export default function TechTree({ playerProgression, skills: propSkills, onSkillUpgrade, onSkillPreview }: TechTreeProps) {
+export default function TechTree({
+  playerProgression,
+  skills: propSkills,
+  dsRows,
+  onSkillUpgrade,
+  onSkillPreview,
+}: TechTreeProps) {
   const [activeFilter, setActiveFilter] = useState<SkillTreeType | 'all'>('all');
-  const [skills] = useState<SkillNode[]>(propSkills || sampleSkillTrees);
+  const [hoveredSkill, setHoveredSkill] = useState<SkillNode | null>(null);
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [highlightedSkills, setHighlightedSkills] = useState<string[]>([]);
+  const [highlightTimeout, setHighlightTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  const filteredSkills = skills.filter(skill => 
-    activeFilter === 'all' || skill.skillTree === activeFilter
-  );
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setMousePosition({ x: e.clientX, y: e.clientY });
+  };
+
+  const handleSkillHover = (skill: SkillNode | null) => {
+    setHoveredSkill(skill);
+    onSkillPreview(skill);
+  };
+
+  const highlightMissingSkills = (missingSkillIds: string[]) => {
+    // Clear any existing timeout
+    if (highlightTimeout) {
+      clearTimeout(highlightTimeout);
+    }
+    
+    setHighlightedSkills(missingSkillIds);
+    
+    // Auto-hide highlights after 3 seconds
+    const timeout = setTimeout(() => {
+      setHighlightedSkills([]);
+      setHighlightTimeout(null);
+    }, 3000);
+    
+    setHighlightTimeout(timeout);
+  };
+
+  const handleSkillClick = (skill: SkillNode) => {
+    // Check if skill can be unlocked/upgraded
+    if (canUpgradeSkill(skill)) {
+      onSkillUpgrade(skill.id);
+      return;
+    }
+    
+    if (canUnlockSkill(skill)) {
+      onSkillUpgrade(skill.id);
+      return;
+    }
+    
+    // Skill cannot be unlocked/upgraded - highlight missing prerequisites
+    const prereqInfo = getPrerequisiteInfo(skill);
+    
+    // Only highlight missing prerequisites if there are any
+    if (!prereqInfo.hasPrereqs && prereqInfo.missingPrereqs.length > 0) {
+      highlightMissingSkills(prereqInfo.missingPrereqs);
+    }
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (highlightTimeout) {
+        clearTimeout(highlightTimeout);
+      }
+    };
+  }, [highlightTimeout]);
+
+  // Build skills from either props or DS rows
+  const derivedFromDs = dsRows?.length
+    ? calculateTreePositions(mapDsToSkillNodes(dsRows, playerProgression))
+    : undefined;
+
+  // If caller provided propSkills, still (re)calculate positions in case they changed spacings
+  const skillsWithPositions = propSkills?.length
+    ? calculateTreePositions([...propSkills.map((s) => ({ ...s }))])
+    : undefined;
+
+  const skills = skillsWithPositions || derivedFromDs || [];
+  
+  // Log skill positions for debugging
+  console.log('=== SKILL TREE POSITIONS ===');
+  skills.forEach(skill => {
+    console.log(`Skill: ${skill.name} (${skill.id})`, {
+      position: skill.position,
+      skillTree: skill.skillTree,
+      tier: skill.tier,
+      isUnlocked: skill.isUnlocked
+    });
+  });
+  console.log('=== END SKILL POSITIONS ===');
+  
+  // Early guard
+  if (!skills.length) {
+    return (
+      <TechTreeContainer>
+        <TreeHeader>
+          <h2>Skill Trees</h2>
+          <ProgressionStats>
+            <div className="stat"><div className="label">Level</div><div className="value">{playerProgression.totalLevel}</div></div>
+            <div className="stat"><div className="label">Available SP</div><div className="value">{playerProgression.unspentSkillPoints}</div></div>
+            <div className="stat"><div className="label">Total SP</div><div className="value">{playerProgression.skillPoints}</div></div>
+            <div className="stat"><div className="label">Talent Points</div><div className="value">{playerProgression.unspentTalentPoints}</div></div>
+          </ProgressionStats>
+        </TreeHeader>
+        <div style={{ opacity: 0.7 }}>No skills to display.</div>
+      </TechTreeContainer>
+    );
+  }
+
+  // Removed filteredSkills as we now show all trees in separate sections
 
   const canUpgradeSkill = (skill: SkillNode): boolean => {
     if (skill.isMaxed) return false;
-    if (playerProgression.unspentSkillPoints < skill.cost.skillPoints) return false;
-    if (playerProgression.totalLevel < skill.cost.level) return false;
-    
-    // Check prerequisites
-    const hasPrereqs = skill.prerequisites.every(prereqId => 
-      playerProgression.unlockedSkills.includes(prereqId)
+    if ((playerProgression.unspentSkillPoints ?? 0) < (skill.cost.skillPoints ?? 0)) return false;
+    if ((playerProgression.totalLevel ?? 1) < (skill.cost.level ?? 1)) return false;
+
+    if (skill.tier === 1 && (!skill.prerequisites || !skill.prerequisites.length)) return true;
+
+    const hasPrereqs = (skill.prerequisites ?? []).every((id) =>
+      playerProgression.unlockedSkills.includes(id)
     );
-    
     return hasPrereqs;
   };
 
-  const getSkillConnections = (skill: SkillNode) => {
-    return skills.filter(s => s.prerequisites.includes(skill.id));
+  const canUnlockSkill = (skill: SkillNode): boolean => {
+    if (skill.isUnlocked) return false; // Already unlocked
+    if ((playerProgression.unspentSkillPoints ?? 0) < (skill.cost.skillPoints ?? 0)) return false;
+    if ((playerProgression.totalLevel ?? 1) < (skill.cost.level ?? 1)) return false;
+
+    // Check if prerequisites are met
+    const hasPrereqs = (skill.prerequisites ?? []).every((id) =>
+      playerProgression.unlockedSkills.includes(id)
+    );
+    return hasPrereqs;
   };
+
+  const getPrerequisiteInfo = (skill: SkillNode) => {
+    if (!skill.prerequisites || skill.prerequisites.length === 0) {
+      return { hasPrereqs: true, missingPrereqs: [], unlockedPrereqs: [] };
+    }
+
+    const unlockedPrereqs = skill.prerequisites.filter(id => 
+      playerProgression.unlockedSkills.includes(id)
+    );
+    const missingPrereqs = skill.prerequisites.filter(id => 
+      !playerProgression.unlockedSkills.includes(id)
+    );
+
+    return {
+      hasPrereqs: missingPrereqs.length === 0,
+      missingPrereqs,
+      unlockedPrereqs
+    };
+  };
+
+  const getSkillInfoById = (skillId: string) => {
+    const skill = skills.find(s => s.id === skillId);
+    return skill ? { 
+      name: skill.name, 
+      skillTree: skill.skillTree, 
+      tier: skill.tier 
+    } : { 
+      name: skillId, 
+      skillTree: null, 
+      tier: null 
+    };
+  };
+
+  // Helper function to group skills by tier
+  const groupSkillsByTier = (skills: SkillNode[]) => {
+    return skills.reduce((acc, skill) => {
+      if (!acc[skill.tier]) acc[skill.tier] = [];
+      acc[skill.tier].push(skill);
+      return acc;
+    }, {} as Record<number, SkillNode[]>);
+  };
+
 
   const skillTreeFilters = [
     { key: 'all' as const, label: 'All Trees', icon: '🌟' },
-    { key: SkillTreeType.COMBAT, label: 'Combat', icon: '⚔️' },
-    { key: SkillTreeType.MAGIC, label: 'Magic', icon: '🔮' },
-    { key: SkillTreeType.CRAFTING, label: 'Crafting', icon: '🔨' },
-    { key: SkillTreeType.EXPLORATION, label: 'Exploration', icon: '🗺️' },
-    { key: SkillTreeType.SOCIAL, label: 'Social', icon: '💬' },
-    { key: SkillTreeType.DEFENSIVE, label: 'Defense', icon: '🛡️' }
+    { key: SkillTreeType.COMBAT, label: 'Combat Tree', icon: '⚔️' },
+    { key: SkillTreeType.MAGIC, label: 'Magic Tree', icon: '🔮' },
+    { key: SkillTreeType.CRAFTING, label: 'Crafting Tree', icon: '🔨' },
   ];
 
   return (
@@ -654,8 +801,12 @@ export default function TechTree({ playerProgression, skills: propSkills, onSkil
             <div className="value">{playerProgression.totalLevel}</div>
           </div>
           <div className="stat">
-            <div className="label">Skill Points</div>
+            <div className="label">Available SP</div>
             <div className="value">{playerProgression.unspentSkillPoints}</div>
+          </div>
+          <div className="stat">
+            <div className="label">Total SP</div>
+            <div className="value">{playerProgression.skillPoints}</div>
           </div>
           <div className="stat">
             <div className="label">Talent Points</div>
@@ -665,9 +816,9 @@ export default function TechTree({ playerProgression, skills: propSkills, onSkil
       </TreeHeader>
 
       <TreeFilters>
-        {skillTreeFilters.map(filter => (
+        {skillTreeFilters.map((filter) => (
           <FilterButton
-            key={filter.key}
+            key={filter.key as string}
             $active={activeFilter === filter.key}
             onClick={() => setActiveFilter(filter.key)}
           >
@@ -676,60 +827,381 @@ export default function TechTree({ playerProgression, skills: propSkills, onSkil
         ))}
       </TreeFilters>
 
-      <TreeCanvas>
-        {/* Draw connection lines */}
-        {filteredSkills.map(skill => 
-          getSkillConnections(skill).map(connectedSkill => (
-            <ConnectionLine
-              key={`${skill.id}-${connectedSkill.id}`}
-              $from={skill.position}
-              $to={connectedSkill.position}
-              $isActive={skill.isUnlocked}
-            />
-          ))
-        )}
-
-        {/* Draw skill nodes */}
-        {filteredSkills.map(skill => (
-          <SkillNodeComponent
-            key={skill.id}
-            $tier={skill.tier}
-            $isUnlocked={skill.isUnlocked}
-            $isMaxed={skill.isMaxed}
-            $canUpgrade={canUpgradeSkill(skill)}
-            $position={skill.position}
-            onClick={() => canUpgradeSkill(skill) && onSkillUpgrade(skill.id)}
-            onMouseEnter={() => onSkillPreview(skill)}
-            onMouseLeave={() => onSkillPreview(null)}
-          >
-            {skill.icon}
-            <div className="tier-indicator">{skill.tier}</div>
-            {skill.currentRank > 0 && (
-              <div className="rank-indicator">
-                {skill.currentRank}/{skill.maxRank}
+      <TreeCanvas onMouseMove={handleMouseMove}>
+        {/* Three Tree Layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', width: '100%', height: '100%', minHeight: '900px', gap: '40px', padding: '0 40px' }}>
+          
+          {/* Combat Tree (Left) */}
+          <TreeSection $treeType="combat" style={{ flex: 1, position: 'relative' }}>
+            <TreeTitle $treeType="combat">Combat Tree</TreeTitle>
+            <TreeStats $treeType="combat">
+              <div className="stat">
+                <div className="label">Points Spent</div>
+                <div className="value">
+                  {skills.filter(s => s.skillTree === SkillTreeType.COMBAT && s.isUnlocked).length}/
+                  {skills.filter(s => s.skillTree === SkillTreeType.COMBAT).length}
+                </div>
               </div>
-            )}
+              <div className="stat">
+                <div className="label">Required Level</div>
+                <div className="value">
+                  {Math.max(...skills.filter(s => s.skillTree === SkillTreeType.COMBAT).map(s => s.cost.level))}
+                </div>
+              </div>
+            </TreeStats>
             
-            <SkillTooltip className="tooltip">
-              <div className="skill-name">{skill.name}</div>
-              <div className="skill-description">{skill.description}</div>
-              
-              <div className="skill-effects">
-                {skill.effects.map((effect, index) => (
-                  <div key={index} className="effect">
-                    {effect.description}
-                  </div>
-                ))}
+            {/* SVG for connections */}
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
+              {skills
+                .filter(s => s.skillTree === SkillTreeType.COMBAT)
+                .map(skill => {
+                  const connections = (skill as SkillNode & { visual_connections?: string[] }).visual_connections || [];
+                  return connections.map((connectionId: string, index: number) => {
+                    const connectedSkill = skills.find(s => s.id === connectionId);
+                    if (!connectedSkill) return null;
+                    
+                    const isActive = skill.isUnlocked && connectedSkill.isUnlocked;
+                    return (
+                      <SkillConnection
+                        key={`${skill.id}-${connectionId}-${index}`}
+                        $isActive={isActive}
+                        $treeType="combat"
+                        x1={skill.position.x}
+                        y1={skill.position.y}
+                        x2={connectedSkill.position.x}
+                        y2={connectedSkill.position.y}
+                      />
+                    );
+                  });
+                })
+                .flat()
+                .filter(Boolean)}
+            </svg>
+            
+            {/* Combat Skills */}
+            {Object.entries(groupSkillsByTier(skills.filter(s => s.skillTree === SkillTreeType.COMBAT)))
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([tier, tierSkills]) => (
+                <TierWrapper
+                  key={`combat-tier-${tier}`}
+                  style={{ top: `${200 + (parseInt(tier) - 1) * 120}px` }}
+                >
+                  {tierSkills.map((skill) => (
+                    <SkillNodeComponent
+                      key={skill.id}
+                      $tier={skill.tier}
+                      $isUnlocked={skill.isUnlocked}
+                      $isMaxed={skill.isMaxed}
+                      $canUpgrade={canUpgradeSkill(skill)}
+                      $canUnlock={canUnlockSkill(skill)}
+                      $position={{ x: 0, y: 0 }} // Position handled by TierWrapper
+                      $skillTree={skill.skillTree}
+                      onClick={() => handleSkillClick(skill)}
+                      onMouseEnter={() => handleSkillHover(skill)}
+                      onMouseLeave={() => handleSkillHover(null)}
+                      title={skill.name}
+                    >
+                  {skill.icon}
+                  <div className="tier-indicator">{skill.tier}</div>
+                  {skill.currentRank > 0 && (
+                    <div className="rank-indicator">
+                      {skill.currentRank}/{skill.maxRank}
+                    </div>
+                  )}
+                  {canUnlockSkill(skill) && (
+                    <div className="unlock-indicator">🔓</div>
+                  )}
+                  {highlightedSkills.includes(skill.id) && (
+                    <SkillHighlightOverlay />
+                  )}
+                    </SkillNodeComponent>
+                  ))}
+                </TierWrapper>
+              ))}
+          </TreeSection>
+
+          {/* Crafting Tree (Middle) */}
+          <TreeSection $treeType="crafting" style={{ flex: 1, position: 'relative' }}>
+            <TreeTitle $treeType="crafting">Crafting Tree</TreeTitle>
+            <TreeStats $treeType="crafting">
+              <div className="stat">
+                <div className="label">Points Spent</div>
+                <div className="value">
+                  {skills.filter(s => s.skillTree === SkillTreeType.CRAFTING && s.isUnlocked).length}/
+                  {skills.filter(s => s.skillTree === SkillTreeType.CRAFTING).length}
+                </div>
               </div>
-              
-              <div className="skill-cost">
-                Cost: {skill.cost.skillPoints} SP | Level {skill.cost.level}
-                {skill.cost.gold && ` | ${skill.cost.gold} Gold`}
+              <div className="stat">
+                <div className="label">Required Level</div>
+                <div className="value">
+                  {Math.max(...skills.filter(s => s.skillTree === SkillTreeType.CRAFTING).map(s => s.cost.level))}
+                </div>
               </div>
-            </SkillTooltip>
-          </SkillNodeComponent>
+            </TreeStats>
+            
+            {/* SVG for connections */}
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
+              {skills
+                .filter(s => s.skillTree === SkillTreeType.CRAFTING)
+                .map(skill => {
+                  const connections = (skill as SkillNode & { visual_connections?: string[] }).visual_connections || [];
+                  return connections.map((connectionId: string, index: number) => {
+                    const connectedSkill = skills.find(s => s.id === connectionId);
+                    if (!connectedSkill) return null;
+                    
+                    const isActive = skill.isUnlocked && connectedSkill.isUnlocked;
+        return (
+                      <SkillConnection
+                        key={`${skill.id}-${connectionId}-${index}`}
+                        $isActive={isActive}
+                        $treeType="crafting"
+                        x1={skill.position.x}
+                        y1={skill.position.y}
+                        x2={connectedSkill.position.x}
+                        y2={connectedSkill.position.y}
+          />
+        );
+      });
+                })
+                .flat()
+                .filter(Boolean)}
+            </svg>
+            
+            {/* Crafting Skills */}
+            {Object.entries(groupSkillsByTier(skills.filter(s => s.skillTree === SkillTreeType.CRAFTING)))
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([tier, tierSkills]) => (
+                <TierWrapper
+                  key={`crafting-tier-${tier}`}
+                  style={{ top: `${200 + (parseInt(tier) - 1) * 120}px` }}
+                >
+                  {tierSkills.map((skill) => (
+                    <SkillNodeComponent
+                      key={skill.id}
+                      $tier={skill.tier}
+                      $isUnlocked={skill.isUnlocked}
+                      $isMaxed={skill.isMaxed}
+                      $canUpgrade={canUpgradeSkill(skill)}
+                      $canUnlock={canUnlockSkill(skill)}
+                      $position={{ x: 0, y: 0 }} // Position handled by TierWrapper
+                      $skillTree={skill.skillTree}
+                      onClick={() => handleSkillClick(skill)}
+                      onMouseEnter={() => handleSkillHover(skill)}
+                      onMouseLeave={() => handleSkillHover(null)}
+                      title={skill.name}
+                    >
+                  {skill.icon}
+                  <div className="tier-indicator">{skill.tier}</div>
+                  {skill.currentRank > 0 && (
+                    <div className="rank-indicator">
+                      {skill.currentRank}/{skill.maxRank}
+                    </div>
+                  )}
+                  {canUnlockSkill(skill) && (
+                    <div className="unlock-indicator">🔓</div>
+                  )}
+                  {highlightedSkills.includes(skill.id) && (
+                    <SkillHighlightOverlay />
+                  )}
+                    </SkillNodeComponent>
+                  ))}
+                </TierWrapper>
+              ))}
+          </TreeSection>
+
+          {/* Magic Tree (Right) */}
+          <TreeSection $treeType="magic" style={{ flex: 1, position: 'relative' }}>
+            <TreeTitle $treeType="magic">Magic Tree</TreeTitle>
+            <TreeStats $treeType="magic">
+              <div className="stat">
+                <div className="label">Points Spent</div>
+                <div className="value">
+                  {skills.filter(s => s.skillTree === SkillTreeType.MAGIC && s.isUnlocked).length}/
+                  {skills.filter(s => s.skillTree === SkillTreeType.MAGIC).length}
+                </div>
+              </div>
+              <div className="stat">
+                <div className="label">Required Level</div>
+                <div className="value">
+                  {Math.max(...skills.filter(s => s.skillTree === SkillTreeType.MAGIC).map(s => s.cost.level))}
+                </div>
+              </div>
+            </TreeStats>
+            
+            {/* SVG for connections */}
+            <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }}>
+              {skills
+                .filter(s => s.skillTree === SkillTreeType.MAGIC)
+                .map(skill => {
+                  const connections = (skill as SkillNode & { visual_connections?: string[] }).visual_connections || [];
+                  return connections.map((connectionId: string, index: number) => {
+                    const connectedSkill = skills.find(s => s.id === connectionId);
+                    if (!connectedSkill) return null;
+                    
+                    const isActive = skill.isUnlocked && connectedSkill.isUnlocked;
+                    return (
+                      <SkillConnection
+                        key={`${skill.id}-${connectionId}-${index}`}
+                        $isActive={isActive}
+                        $treeType="magic"
+                        x1={skill.position.x}
+                        y1={skill.position.y}
+                        x2={connectedSkill.position.x}
+                        y2={connectedSkill.position.y}
+                      />
+                    );
+                  });
+                })
+                .flat()
+                .filter(Boolean)}
+            </svg>
+            
+            {/* Magic Skills */}
+            {Object.entries(groupSkillsByTier(skills.filter(s => s.skillTree === SkillTreeType.MAGIC)))
+              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+              .map(([tier, tierSkills]) => (
+                <TierWrapper
+                  key={`magic-tier-${tier}`}
+                  style={{ top: `${200 + (parseInt(tier) - 1) * 120}px` }}
+                >
+                  {tierSkills.map((skill) => (
+                    <SkillNodeComponent
+                      key={skill.id}
+                      $tier={skill.tier}
+                      $isUnlocked={skill.isUnlocked}
+                      $isMaxed={skill.isMaxed}
+                      $canUpgrade={canUpgradeSkill(skill)}
+                      $canUnlock={canUnlockSkill(skill)}
+                      $position={{ x: 0, y: 0 }} // Position handled by TierWrapper
+                      $skillTree={skill.skillTree}
+                      onClick={() => handleSkillClick(skill)}
+                      onMouseEnter={() => handleSkillHover(skill)}
+                      onMouseLeave={() => handleSkillHover(null)}
+                      title={skill.name}
+                    >
+        {skill.icon}
+        <div className="tier-indicator">{skill.tier}</div>
+        {skill.currentRank > 0 && (
+          <div className="rank-indicator">
+            {skill.currentRank}/{skill.maxRank}
+          </div>
+        )}
+        {canUnlockSkill(skill) && (
+          <div className="unlock-indicator">🔓</div>
+        )}
+        {highlightedSkills.includes(skill.id) && (
+          <SkillHighlightOverlay />
+        )}
+                    </SkillNodeComponent>
+                  ))}
+                </TierWrapper>
+              ))}
+          </TreeSection>
+  </div>
+  
+  {/* Global Tooltip */}
+  {hoveredSkill && (
+    <SkillTooltip
+      style={{
+        left: `${mousePosition.x}px`,
+        top: `${mousePosition.y - 20}px`,
+        opacity: 1,
+        visibility: 'visible',
+        transform: 'translate(-50%, -100%)'
+      }}
+    >
+      <div className="skill-name">
+        {hoveredSkill.name}
+        <span className="skill-meta">
+          T{hoveredSkill.tier} • {hoveredSkill.skillTree}
+        </span>
+      </div>
+      <div className="skill-description">{hoveredSkill.description}</div>
+      <div className="skill-effects">
+        {(hoveredSkill.effects ?? []).map((e, i: number) => (
+          <div key={i} className="effect">
+            {e?.description ?? JSON.stringify(e)}
+          </div>
         ))}
-      </TreeCanvas>
+      </div>
+      <div className="skill-cost">
+        Cost: {hoveredSkill.cost.skillPoints ?? 0} SP | Level {hoveredSkill.cost.level ?? 1}
+        {!!hoveredSkill.cost.gold && ` | ${hoveredSkill.cost.gold} Gold`}
+      </div>
+      {(() => {
+        const prereqInfo = getPrerequisiteInfo(hoveredSkill);
+        if (prereqInfo.hasPrereqs && hoveredSkill.prerequisites && hoveredSkill.prerequisites.length > 0) {
+          return (
+            <div className="prerequisites">
+              <div className="prereq-title">✅ Prerequisites Met:</div>
+              {prereqInfo.unlockedPrereqs.map((prereqId, i) => {
+                const prereqInfo = getSkillInfoById(prereqId);
+                return (
+                  <div key={i} className="prereq-item unlocked">
+                    ✓ {prereqInfo.name}
+                    {prereqInfo.tier && (
+                      <span className="tier-tag">T{prereqInfo.tier}</span>
+                    )}
+                    {prereqInfo.skillTree && (
+                      <span className="skill-tree-tag">({prereqInfo.skillTree})</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        } else if (!prereqInfo.hasPrereqs) {
+          return (
+            <div className="prerequisites">
+              <div className="prereq-title">❌ Missing Prerequisites:</div>
+              {prereqInfo.missingPrereqs.map((prereqId, i) => {
+                const prereqInfo = getSkillInfoById(prereqId);
+                return (
+                  <div key={i} className="prereq-item missing">
+                    ✗ {prereqInfo.name}
+                    {prereqInfo.tier && (
+                      <span className="tier-tag">T{prereqInfo.tier}</span>
+                    )}
+                    {prereqInfo.skillTree && (
+                      <span className="skill-tree-tag">({prereqInfo.skillTree})</span>
+                    )}
+                  </div>
+                );
+              })}
+              {prereqInfo.unlockedPrereqs.length > 0 && (
+                <>
+                  <div className="prereq-title" style={{ marginTop: '8px' }}>✅ Completed:</div>
+                  {prereqInfo.unlockedPrereqs.map((prereqId, i) => {
+                    const prereqInfo = getSkillInfoById(prereqId);
+                    return (
+                      <div key={i} className="prereq-item unlocked">
+                        ✓ {prereqInfo.name}
+                        {prereqInfo.tier && (
+                          <span className="tier-tag">T{prereqInfo.tier}</span>
+                        )}
+                        {prereqInfo.skillTree && (
+                          <span className="skill-tree-tag">({prereqInfo.skillTree})</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          );
+        }
+        return null;
+      })()}
+      {canUnlockSkill(hoveredSkill) && (
+        <div className="unlock-status" style={{ color: '#10b981', fontWeight: 'bold', marginTop: '8px' }}>
+          🔓 Ready to Unlock!
+        </div>
+      )}
+    </SkillTooltip>
+  )}
+</TreeCanvas>
+
+
     </TechTreeContainer>
   );
-} 
+}

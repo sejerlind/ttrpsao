@@ -56,6 +56,7 @@ BEGIN
         event_type,
         event_description,
         event_data,
+        turn_occurred,
         created_at
     ) VALUES (
         session_id,
@@ -65,6 +66,7 @@ BEGIN
             'new_turn', current_turn_number,
             'players_reset', players_reset
         ),
+        current_turn_number,
         NOW()
     );
     
