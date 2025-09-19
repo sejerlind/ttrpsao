@@ -52,12 +52,162 @@ const mapCategory = (s: string): SkillCategory => {
   return SkillCategory.PASSIVE;
 };
 
-const parseEffects = (effectsStr: string | undefined, name: string) => {
+const parseEffects = (effectsStr: string | undefined, name: string, skillId: string) => {
   try {
     const v = effectsStr ? JSON.parse(effectsStr) : [];
     if (Array.isArray(v)) return v;
   } catch {}
+  
+  // Add ability unlock effects for certain skills based on their names or IDs
+  const abilityUnlockEffects = getAbilityUnlockEffects(name, skillId);
+  if (abilityUnlockEffects.length > 0) {
+    return abilityUnlockEffects;
+  }
+  
   return [{ type: 'info', target: name, value: 1, description: name }];
+};
+
+// Helper function to determine which abilities should be unlocked by skills
+const getAbilityUnlockEffects = (skillName: string, skillId: string) => {
+  const effects = [];
+  const name = skillName.toLowerCase();
+  const id = skillId.toLowerCase();
+  
+  // Combat abilities
+  if (name.includes('power strike') || id.includes('power_strike')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'combat',
+      value: 1,
+      description: 'Unlocks Power Strike ability',
+      abilityId: 'power_strike'
+    });
+  }
+  
+  if (name.includes('whirlwind') || id.includes('whirlwind')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'combat',
+      value: 1,
+      description: 'Unlocks Whirlwind Attack ability',
+      abilityId: 'whirlwind_attack'
+    });
+  }
+  
+  if (name.includes('berserker') || id.includes('berserker')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'combat',
+      value: 1,
+      description: 'Unlocks Berserker Rage ability',
+      abilityId: 'berserker_rage'
+    });
+  }
+  
+  if (name.includes('shield') || id.includes('shield')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'defense',
+      value: 1,
+      description: 'Unlocks Shield Bash ability',
+      abilityId: 'shield_bash'
+    });
+  }
+  
+  // Magic abilities
+  if (name.includes('fireball') || id.includes('fireball')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Fireball spell',
+      abilityId: 'fireball'
+    });
+  }
+  
+  if (name.includes('heal') || id.includes('heal')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Heal spell',
+      abilityId: 'heal'
+    });
+  }
+  
+  if (name.includes('magic missile') || id.includes('magic_missile')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Magic Missile spell',
+      abilityId: 'magic_missile'
+    });
+  }
+  
+  if (name.includes('teleport') || id.includes('teleport')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Teleport spell',
+      abilityId: 'teleport'
+    });
+  }
+  
+  // Crafting abilities
+  if (name.includes('repair') || id.includes('repair')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'crafting',
+      value: 1,
+      description: 'Unlocks Repair Equipment ability',
+      abilityId: 'repair_equipment'
+    });
+  }
+  
+  if (name.includes('identify') || id.includes('identify')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'crafting',
+      value: 1,
+      description: 'Unlocks Identify Item ability',
+      abilityId: 'identify_item'
+    });
+  }
+  
+  if (name.includes('enchant') || id.includes('enchant')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'crafting',
+      value: 1,
+      description: 'Unlocks Enchant Weapon ability',
+      abilityId: 'enchant_weapon'
+    });
+  }
+  
+  // Ultimate abilities
+  if (name.includes('meteor') || id.includes('meteor')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Meteor Strike ultimate ability',
+      abilityId: 'meteor_strike'
+    });
+  }
+  
+  if (name.includes('divine') || id.includes('divine')) {
+    effects.push({
+      type: 'ability_unlock',
+      target: 'magic',
+      value: 1,
+      description: 'Unlocks Divine Intervention ultimate ability',
+      abilityId: 'divine_intervention'
+    });
+  }
+  
+  return effects;
 };
 
 // --- public API --------------------------------------------------------------
@@ -97,7 +247,7 @@ export const mapDsToSkillNodes = (
       isUnlocked,
       isMaxed,
       category: mapCategory(r.category),
-      effects: parseEffects(r.effects, r.name),
+      effects: parseEffects(r.effects, r.name, r.id),
     };
   });
 };

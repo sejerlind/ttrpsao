@@ -15,6 +15,19 @@ export interface Resources {
   actionPoints: { current: number; max: number };
   armor: { current: number };
   magicResist: { current: number };
+  // Bonus stats from skills
+  bonuses?: {
+    attack_damage: number;
+    health: number;
+    mana: number;
+    armor: number;
+    magic_resist: number;
+    mana_regen: number;
+    crit_chance: number;
+    crit_damage: number;
+    attack_speed: number;
+    movement_speed: number;
+  };
 }
 
 export interface Ability {
@@ -27,6 +40,17 @@ export interface Ability {
   damage?: string;
   manaCost?: number;
   effects?: string[];
+  level?: number; // Current skill level (1-5)
+  maxLevel?: number; // Maximum possible level
+  baseDamage?: string; // Base damage before scaling
+  baseManaCost?: number; // Base mana cost before scaling
+  baseCooldown?: number; // Base cooldown before scaling
+  scaling?: {
+    damage?: string; // How damage scales per level (e.g., "+1d6 per level")
+    manaCost?: string; // How mana cost scales per level
+    cooldown?: string; // How cooldown scales per level
+    effects?: string[]; // Additional effects gained at higher levels
+  };
 }
 
 export interface Buff {
@@ -81,6 +105,8 @@ export interface SkillEffect {
   value: number | string;
   description: string;
   scaling?: 'linear' | 'exponential' | 'logarithmic'; // How it scales per rank
+  abilityId?: string; // For ability_unlock effects, the ID of the ability to unlock
+  abilityData?: Partial<Ability>; // For ability_unlock effects, the ability data
 }
 
 export enum SkillTreeType {
@@ -110,6 +136,7 @@ export interface PlayerProgression {
   skillTrees: Record<SkillTreeType, SkillTreeProgress>;
   unlockedSkills: string[];
   masteryLevels: Record<string, number>;
+  unlockedAbilities: string[]; // Array of ability IDs unlocked through skills
 }
 
 export interface SkillTreeProgress {

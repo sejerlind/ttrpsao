@@ -27,9 +27,13 @@ import type {
   FloatingTextItem,
   GameSession,
   AbilityUsageLog,
-  BattleEncounter
+  BattleEncounter,
+  PlayerProgression
 } from '../../../components/types';
-import type { DatabaseCharacter, DatabaseAbility } from '../../../lib/supabase';
+import type { DatabaseCharacter } from '../../../lib/supabase';
+
+// Import ability system
+import { getPlayerAbilities, getAbilitiesFromUnlockedSkillsWithLevels, getStatBonusesFromSkills } from '../../../lib/abilityManager';
 
 // Main container styled component
 const Container = styled.div`
@@ -949,6 +953,7 @@ const ErrorContainer = styled.div`
   }
 `;
 
+
 export default function PlayerPage() {
   const params = useParams();
   const router = useRouter();
@@ -971,6 +976,7 @@ export default function PlayerPage() {
   const [abilities, setAbilities] = useState<Ability[]>([]);
   const [isLoadingAbilities, setIsLoadingAbilities] = useState(true);
   const [manaRegen, setManaRegen] = useState<number>(10); // Store mana regen separately
+  const [statBonuses, setStatBonuses] = useState<Record<string, number>>({});
   const [activeGameSession, setActiveGameSession] = useState<string | null>(null);
   const [currentGameTurn, setCurrentGameTurn] = useState<number>(1);
   const [battleEnemies, setBattleEnemies] = useState<BattleEncounter[]>([]);
@@ -988,24 +994,29 @@ export default function PlayerPage() {
     { id: '3', name: 'Poisoned', type: 'debuff', duration: 8, icon: '🟢' },
   ]);
 
-  const [activeCategory, setActiveCategory] = useState<'all' | 'basic' | 'skill' | 'ultimate'>('all');
+  const [activeCategory, setActiveCategory] = useState<'all' | 'basic' | 'skill' | 'ultimate' | 'bonuses'>('all');
   const [selectedAbility, setSelectedAbility] = useState<Ability | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [recentlyUsedAbilities, setRecentlyUsedAbilities] = useState<UsedAbility[]>([]);
   const [floatingTexts, setFloatingTexts] = useState<FloatingTextItem[]>([]);
+  const [playerProgression, setPlayerProgression] = useState<PlayerProgression | null>(null);
 
   // Load character data from Supabase
-  const loadCharacter = useCallback(async () => {
+  const loadCharacter = useCallback(async (currentStatBonuses: Record<string, number>) => {
     try {
+      console.log('🔄 Starting loadCharacter with playerId:', playerId);
+      console.log('📊 Current stat bonuses:', currentStatBonuses);
       setIsLoadingCharacter(true);
       setCharacterError(null);
       
       if (!supabase) {
+        console.error('❌ Supabase not configured');
         setCharacterError('Database not configured');
         return;
       }
 
       if (!playerId) {
+        console.error('❌ No player ID provided');
         setCharacterError('No player ID provided');
         return;
       }
@@ -1014,6 +1025,13 @@ export default function PlayerPage() {
         .from('characters')
         .select('*')
         .eq('id', playerId)
+        .single();
+
+      // Also load player progression for abilities
+      const { data: progressionData, error: progressionError } = await supabase
+        .from('player_progression')
+        .select('*')
+        .eq('character_id', playerId)
         .single();
 
       if (error) {
@@ -1036,19 +1054,89 @@ export default function PlayerPage() {
         experienceToNext: data.experience_to_next,
       };
 
+      // Apply stat bonuses to resources
+      const baseHealth = data.health_max + (currentStatBonuses.health || 0);
+      const baseMana = data.mana_max + (currentStatBonuses.mana || 0);
+      const baseArmor = data.armor_current + (currentStatBonuses.armor || 0);
+      const baseMagicResist = data.magic_resist_current + (currentStatBonuses.magic_resist || 0);
+      
       const resources: Resources = {
-        health: { current: data.health_current, max: data.health_max },
-        mana: { current: data.mana_current, max: data.mana_max },
+        health: { 
+          current: Math.min(data.health_current, baseHealth), 
+          max: baseHealth 
+        },
+        mana: { 
+          current: Math.min(data.mana_current, baseMana), 
+          max: baseMana 
+        },
         stamina: { current: data.stamina_current, max: data.stamina_max },
         actionPoints: { current: data.action_points_current, max: data.action_points_max },
-        armor: { current: data.armor_current },
-        magicResist: { current: data.magic_resist_current },
+        armor: { current: baseArmor },
+        magicResist: { current: baseMagicResist },
+        bonuses: {
+          attack_damage: currentStatBonuses.attack_damage || 0,
+          health: currentStatBonuses.health || 0,
+          mana: currentStatBonuses.mana || 0,
+          armor: currentStatBonuses.armor || 0,
+          magic_resist: currentStatBonuses.magic_resist || 0,
+          mana_regen: currentStatBonuses.mana_regen || 0,
+          crit_chance: currentStatBonuses.crit_chance || 0,
+          crit_damage: currentStatBonuses.crit_damage || 0,
+          attack_speed: currentStatBonuses.attack_speed || 0,
+          movement_speed: currentStatBonuses.movement_speed || 0
+        }
       };
 
       setCharacter(character);
       setResources(resources);
       // Store mana regen (default to 10 if not set)
       setManaRegen(data.mana_regen || 10);
+
+      // Process player progression data
+      if (progressionData && !progressionError) {
+        const progression: PlayerProgression = {
+          totalLevel: progressionData.total_level || data.level,
+          skillPoints: progressionData.skill_points || data.level * 2,
+          unspentSkillPoints: progressionData.unspent_skill_points || 0,
+          levelSkillPoints: progressionData.level_skill_points || data.level * 2,
+          talentPoints: progressionData.talent_points || Math.floor(data.level / 2),
+          unspentTalentPoints: progressionData.unspent_talent_points || 0,
+          skillTrees: {
+            combat: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            magic: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            crafting: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            exploration: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            social: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            defensive: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 }
+          },
+          unlockedSkills: [],
+          masteryLevels: {},
+          unlockedAbilities: progressionData.unlocked_abilities || []
+        };
+        setPlayerProgression(progression);
+      } else {
+        // Create default progression if not found
+        const defaultProgression: PlayerProgression = {
+          totalLevel: data.level,
+          skillPoints: data.level * 2,
+          unspentSkillPoints: 0,
+          levelSkillPoints: data.level * 2,
+          talentPoints: Math.floor(data.level / 2),
+          unspentTalentPoints: 0,
+          skillTrees: {
+            combat: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            magic: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            crafting: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            exploration: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            social: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 },
+            defensive: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 }
+          },
+          unlockedSkills: [],
+          masteryLevels: {},
+          unlockedAbilities: []
+        };
+        setPlayerProgression(defaultProgression);
+      }
     } catch (error) {
       console.error('Failed to load character:', error);
       setCharacterError('Unexpected error occurred');
@@ -1057,117 +1145,55 @@ export default function PlayerPage() {
     }
   }, [playerId]);
 
-  // Load abilities from Supabase for specific player
-  const loadAbilities = useCallback(async () => {
+  // Load unlocked skills from database
+  const loadUnlockedSkills = useCallback(async () => {
+    if (!supabase || !playerId) return [];
+    
+    try {
+      const { data: skills, error: skillsError } = await supabase
+        .from('character_skills')
+        .select('skill_id, is_unlocked')
+        .eq('character_id', playerId)
+        .eq('is_unlocked', true);
+        
+      if (skillsError) {
+        console.error('❌ Error loading skills:', skillsError);
+        return [];
+      }
+      
+      const skillIds = skills?.map(s => s.skill_id) || [];
+      
+      return skillIds;
+    } catch (error) {
+      console.error('❌ Failed to load unlocked skills:', error);
+      return [];
+    }
+  }, [playerId]);
+
+
+  // Load abilities using the new ability system with skill levels
+  const loadAbilities = useCallback(async (progression: PlayerProgression, skills: string[] = []) => {
     try {
       setIsLoadingAbilities(true);
       
-      if (!supabase) {
-        console.warn('Supabase not configured');
-        setAbilities([]);
-        return;
-      }
-
-      if (!playerId) {
-        console.warn('No player ID provided');
-        setAbilities([]);
-        return;
-      }
-
-      // Load abilities specific to this player through the junction table
-      console.log('Loading abilities for character:', playerId);
+      // Get abilities from both sources
+      const directAbilities = getPlayerAbilities(progression);
+      const skillAbilities = await getAbilitiesFromUnlockedSkillsWithLevels(playerId!, skills);
       
-      // Since foreign key relationship might not be set up properly, use direct approach
-      console.log('Using direct approach to load abilities...');
+      // Combine and deduplicate abilities
+      const allAbilities = [...directAbilities];
+      skillAbilities.forEach(skillAbility => {
+        if (!allAbilities.find(a => a.id === skillAbility.id)) {
+          allAbilities.push(skillAbility);
+        }
+      });
       
-      // Get character ability IDs first
-      const { data: charAbilities, error: charError } = await supabase
-        .from('character_abilities')
-        .select('ability_id, is_equipped, slot_position')
-        .eq('character_id', playerId);
-        
-      if (charError) {
-        console.error('Error loading character abilities:', charError);
-        setAbilities([]);
-        return;
-      }
+      console.log(`✅ Loaded ${allAbilities.length} abilities for character ${playerId}`);
       
-      if (!charAbilities || charAbilities.length === 0) {
-        console.log('No abilities found for this character');
-        setAbilities([]);
-        return;
-      }
+      setAbilities(allAbilities);
       
-      console.log('Character ability IDs:', charAbilities.map(ca => ca.ability_id));
-      
-      // Get the actual abilities
-      const { data: abilitiesData, error: abilitiesError } = await supabase
-        .from('Abilities')
-        .select('*')
-        .in('id', charAbilities.map(ca => ca.ability_id));
-        
-      if (abilitiesError) {
-        console.error('Error loading abilities:', abilitiesError);
-        setAbilities([]);
-        return;
-      }
-      
-      console.log('Abilities data:', abilitiesData);
-      
-      const playerAbilities = abilitiesData?.map((dbAbility: DatabaseAbility) => ({
-        id: dbAbility.id,
-        name: dbAbility.name,
-        description: dbAbility.description,
-        category: dbAbility.category,
-        cooldownMax: dbAbility.cooldown_max,
-        currentCooldown: dbAbility.current_cooldown || 0,
-        damage: dbAbility.damage || undefined,
-        manaCost: dbAbility.mana_cost || undefined,
-        effects: dbAbility.effects || []
-      })) || [];
-      
-      console.log(`✅ Loaded ${playerAbilities.length} abilities for player ${playerId}`);
-      setAbilities(playerAbilities);
-
-      // OLD JOIN APPROACH (commented out due to foreign key issues)
-      /*
-      const { data, error } = await supabase
-        .from('character_abilities')
-        .select(`
-          ability_id,
-          is_equipped,
-          slot_position,
-          Abilities!inner (
-            id,
-            name,
-            description,
-            category,
-            cooldown_max,
-            current_cooldown,
-            damage,
-            mana_cost,
-            effects,
-            icon
-          )
-        `)
-        .eq('character_id', playerId);
-
-      if (error) {
-        console.error('Error loading player abilities:', error);
-        console.error('Error details:', JSON.stringify(error, null, 2));
-        setAbilities([]);
-        return;
-      }
-
-      console.log('Raw abilities data:', data);
-
-      // If the join query failed or returned no data, try a simpler approach
-      if (!data || data.length === 0) {
-        // This code is now redundant since we're using direct approach above
-      }
-      */
     } catch (error) {
-      console.error('Failed to load player abilities:', error);
+      console.error('❌ Failed to load player abilities:', error);
       setAbilities([]);
     } finally {
       setIsLoadingAbilities(false);
@@ -1315,13 +1341,38 @@ export default function PlayerPage() {
     }
   }, [character]);
 
-  // Load character and abilities on component mount or when playerId changes
+  // Load character and stat bonuses when playerId changes
   useEffect(() => {
     if (playerId) {
-      loadCharacter();
-      loadAbilities();
+      console.log('🚀 useEffect triggered for playerId:', playerId);
+      const loadData = async () => {
+        try {
+          console.log('📊 Loading stat bonuses...');
+          // Load stat bonuses first
+          const bonuses = await getStatBonusesFromSkills(playerId);
+          console.log('✅ Stat bonuses loaded:', bonuses);
+          setStatBonuses(bonuses);
+          // Then load character with the stat bonuses
+          console.log('👤 Loading character...');
+          await loadCharacter(bonuses);
+          console.log('✅ Character loaded successfully');
+        } catch (error) {
+          console.error('❌ Error in loadData:', error);
+        }
+      };
+      loadData();
     }
-  }, [playerId, loadAbilities, loadCharacter]);
+  }, [playerId, loadCharacter]);
+
+  // Load abilities when player progression changes
+  useEffect(() => {
+    if (playerProgression) {
+      // Load skills first, then abilities
+      loadUnlockedSkills().then(skills => {
+        loadAbilities(playerProgression, skills);
+      });
+    }
+  }, [playerProgression, loadAbilities, loadUnlockedSkills]);
 
   // Check for active game sessions when character loads
   useEffect(() => {
@@ -1838,6 +1889,7 @@ export default function PlayerPage() {
         
         <ResourcesGrid resources={resources} manaRegen={manaRegen} />
 
+
         <MainLayout $hasActiveSession={!!activeGameSession}>
           <MainContent>
             <AbilitiesSection
@@ -1847,6 +1899,7 @@ export default function PlayerPage() {
               onCategoryChange={setActiveCategory}
               onAbilityClick={handleAbilityClick}
               isRecentlyUsed={isRecentlyUsed}
+              statBonuses={statBonuses}
             />
 
             <StatsPanel>

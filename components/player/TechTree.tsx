@@ -9,6 +9,7 @@ import {
   PlayerProgression,
 } from '../types';
 import { calculateTreePositions, mapDsToSkillNodes, DsRow } from '../../app/utils/skillMappers';
+import { getAbilitiesFromSkill } from '../../lib/abilityManager';
 
 interface TechTreeProps {
   playerProgression: PlayerProgression;
@@ -21,6 +22,7 @@ interface TechTreeProps {
   dsRows?: DsRow[];
   onSkillUpgrade: (skillId: string) => void;
   onSkillPreview: (skill: SkillNode | null) => void;
+  onAbilitiesUnlocked?: (abilities: string[]) => void; // Callback when new abilities are unlocked
 }
 
 const TechTreeContainer = styled.div`
@@ -83,28 +85,6 @@ const ProgressionStats = styled.div`
   }
 `;
 
-const TreeFilters = styled.div`
-  display: flex;
-  gap: ${(p) => p.theme.spacing.md};
-  margin-bottom: ${(p) => p.theme.spacing.xl};
-  flex-wrap: wrap;
-`;
-
-const FilterButton = styled.button<{ $active: boolean }>`
-  background: ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.card)};
-  color: ${(p) => (p.$active ? p.theme.colors.primary.bg : p.theme.colors.text.primary)};
-  border: 1px solid ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.border)};
-  border-radius: ${(p) => p.theme.borderRadius.medium};
-  padding: ${(p) => p.theme.spacing.sm} ${(p) => p.theme.spacing.lg};
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-
-  &:hover {
-    background: ${(p) => (p.$active ? p.theme.colors.accent.cyan : p.theme.colors.surface.hover)};
-    transform: translateY(-2px);
-  }
-`;
 
 const TreeCanvas = styled.div`
   position: relative;
@@ -610,8 +590,8 @@ export default function TechTree({
   dsRows,
   onSkillUpgrade,
   onSkillPreview,
+  onAbilitiesUnlocked,
 }: TechTreeProps) {
-  const [activeFilter, setActiveFilter] = useState<SkillTreeType | 'all'>('all');
   const [hoveredSkill, setHoveredSkill] = useState<SkillNode | null>(null);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [highlightedSkills, setHighlightedSkills] = useState<string[]>([]);
@@ -647,11 +627,25 @@ export default function TechTree({
     // Check if skill can be unlocked/upgraded
     if (canUpgradeSkill(skill)) {
       onSkillUpgrade(skill.id);
+      
+      // Check for ability unlocks when upgrading
+      const abilities = getAbilitiesFromSkill(skill);
+      if (abilities.length > 0) {
+        const abilityIds = abilities.map(a => a.id);
+        onAbilitiesUnlocked?.(abilityIds);
+      }
       return;
     }
     
     if (canUnlockSkill(skill)) {
       onSkillUpgrade(skill.id);
+      
+      // Check for ability unlocks when unlocking
+      const abilities = getAbilitiesFromSkill(skill);
+      if (abilities.length > 0) {
+        const abilityIds = abilities.map(a => a.id);
+        onAbilitiesUnlocked?.(abilityIds);
+      }
       return;
     }
     
@@ -783,14 +777,6 @@ export default function TechTree({
     }, {} as Record<number, SkillNode[]>);
   };
 
-
-  const skillTreeFilters = [
-    { key: 'all' as const, label: 'All Trees', icon: '🌟' },
-    { key: SkillTreeType.COMBAT, label: 'Combat Tree', icon: '⚔️' },
-    { key: SkillTreeType.MAGIC, label: 'Magic Tree', icon: '🔮' },
-    { key: SkillTreeType.CRAFTING, label: 'Crafting Tree', icon: '🔨' },
-  ];
-
   return (
     <TechTreeContainer>
       <TreeHeader>
@@ -814,18 +800,6 @@ export default function TechTree({
           </div>
         </ProgressionStats>
       </TreeHeader>
-
-      <TreeFilters>
-        {skillTreeFilters.map((filter) => (
-          <FilterButton
-            key={filter.key as string}
-            $active={activeFilter === filter.key}
-            onClick={() => setActiveFilter(filter.key)}
-          >
-            {filter.icon} {filter.label}
-          </FilterButton>
-        ))}
-      </TreeFilters>
 
       <TreeCanvas onMouseMove={handleMouseMove}>
         {/* Three Tree Layout */}

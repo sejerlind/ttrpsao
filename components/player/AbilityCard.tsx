@@ -10,6 +10,17 @@ interface Ability {
   damage?: string;
   manaCost?: number;
   effects?: string[];
+  level?: number; // Current skill level (1-5)
+  maxLevel?: number; // Maximum possible level
+  baseDamage?: string; // Base damage before scaling
+  baseManaCost?: number; // Base mana cost before scaling
+  baseCooldown?: number; // Base cooldown before scaling
+  scaling?: {
+    damage?: string; // How damage scales per level (e.g., "+1d6 per level")
+    manaCost?: string; // How mana cost scales per level
+    cooldown?: string; // How cooldown scales per level
+    effects?: string[]; // Additional effects gained at higher levels
+  };
 }
 
 interface AbilityCardProps {
@@ -106,6 +117,32 @@ const AbilityName = styled.div`
   color: ${props => props.theme.colors.text.primary};
   transition: all 0.3s ease;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const LevelBadge = styled.div<{ $level: number; $maxLevel: number }>`
+  background: ${props => {
+    const level = props.$level;
+    const maxLevel = props.$maxLevel;
+    const progress = level / maxLevel;
+    
+    if (progress >= 0.8) return 'linear-gradient(135deg, #10b981, #059669)'; // Green for high levels
+    if (progress >= 0.6) return 'linear-gradient(135deg, #3b82f6, #1d4ed8)'; // Blue for medium-high
+    if (progress >= 0.4) return 'linear-gradient(135deg, #8b5cf6, #7c3aed)'; // Purple for medium
+    if (progress >= 0.2) return 'linear-gradient(135deg, #f59e0b, #d97706)'; // Orange for low-medium
+    return 'linear-gradient(135deg, #6b7280, #4b5563)'; // Gray for low levels
+  }};
+  color: white;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: ${props => props.theme.borderRadius.pill};
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  min-width: 20px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 `;
 
 const AbilityCooldown = styled.div<{ $cooldown?: boolean }>`
@@ -131,6 +168,38 @@ const AbilityDescription = styled.div`
   color: ${props => props.theme.colors.text.secondary};
   line-height: 1.4;
   margin-bottom: ${props => props.theme.spacing.sm};
+`;
+
+const ScalingEffects = styled.div`
+  margin-top: ${props => props.theme.spacing.sm};
+  padding: ${props => props.theme.spacing.sm};
+  background: rgba(74, 144, 226, 0.1);
+  border-radius: ${props => props.theme.borderRadius.medium};
+  border-left: 3px solid #4a90e2;
+  
+  .scaling-title {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #4a90e2;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .scaling-effect {
+    font-size: 0.75rem;
+    color: ${props => props.theme.colors.text.secondary};
+    margin-bottom: 2px;
+    padding-left: 8px;
+    position: relative;
+    
+    &::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: #4a90e2;
+    }
+  }
 `;
 
 const AbilityStats = styled.div`
@@ -220,7 +289,14 @@ export default function AbilityCard({ ability, isRecentlyUsed, onClick }: Abilit
     >
       <AbilityHeader>
         <AbilityIcon className="ability-icon">{getAbilityIcon(ability)}</AbilityIcon>
-        <AbilityName className="ability-name">{ability.name}</AbilityName>
+        <AbilityName className="ability-name">
+          {ability.name}
+          {ability.level && ability.maxLevel && (
+            <LevelBadge $level={ability.level} $maxLevel={ability.maxLevel}>
+              {ability.level}
+            </LevelBadge>
+          )}
+        </AbilityName>
       </AbilityHeader>
       
       <AbilityCooldown $cooldown={ability.currentCooldown > 0}>
@@ -228,6 +304,22 @@ export default function AbilityCard({ ability, isRecentlyUsed, onClick }: Abilit
       </AbilityCooldown>
       
       <AbilityDescription>{ability.description}</AbilityDescription>
+      
+      {ability.scaling?.effects && ability.level && ability.level > 1 && (
+        <ScalingEffects>
+          <div className="scaling-title">Level {ability.level} Effects</div>
+          {ability.scaling.effects
+            .filter(effect => {
+              const levelMatch = effect.match(/Level (\d+):/);
+              return levelMatch && parseInt(levelMatch[1]) <= ability.level!;
+            })
+            .map(effect => effect.replace(/Level \d+: /, ''))
+            .map((effect, index) => (
+              <div key={index} className="scaling-effect">{effect}</div>
+            ))
+          }
+        </ScalingEffects>
+      )}
       
       {isRecentlyUsed && <UsedIndicator />}
       

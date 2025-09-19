@@ -395,7 +395,8 @@ const createSampleProgression = (level: number): PlayerProgression => ({
     'sword': Math.min(100, level * 3),
     'magic': Math.min(100, level * 2),
     'crafting': Math.min(100, level * 1)
-  }
+  },
+  unlockedAbilities: []
 });
 
 export default function SkillsPage() {
@@ -545,7 +546,8 @@ export default function SkillsPage() {
               [SkillTreeType.DEFENSIVE]: { totalPointsSpent: 0, highestTierUnlocked: 1, specializations: [], masteryBonus: 0 }
             },
             unlockedSkills: mappedSkills.filter(s => s.isUnlocked).map(s => s.id),
-            masteryLevels: {}
+            masteryLevels: {},
+            unlockedAbilities: []
           };
 
           // Apply positioning to the mapped skills

@@ -12,15 +12,27 @@ interface Ability {
   damage?: string;
   manaCost?: number;
   effects?: string[];
+  level?: number; // Current skill level (1-5)
+  maxLevel?: number; // Maximum possible level
+  baseDamage?: string; // Base damage before scaling
+  baseManaCost?: number; // Base mana cost before scaling
+  baseCooldown?: number; // Base cooldown before scaling
+  scaling?: {
+    damage?: string; // How damage scales per level (e.g., "+1d6 per level")
+    manaCost?: string; // How mana cost scales per level
+    cooldown?: string; // How cooldown scales per level
+    effects?: string[]; // Additional effects gained at higher levels
+  };
 }
 
 interface AbilitiesSectionProps {
   abilities: Ability[];
-  activeCategory: 'all' | 'basic' | 'skill' | 'ultimate';
+  activeCategory: 'all' | 'basic' | 'skill' | 'ultimate' | 'bonuses';
   isLoading: boolean;
-  onCategoryChange: (category: 'all' | 'basic' | 'skill' | 'ultimate') => void;
+  onCategoryChange: (category: 'all' | 'basic' | 'skill' | 'ultimate' | 'bonuses') => void;
   onAbilityClick: (ability: Ability) => void;
   isRecentlyUsed: (abilityId: string) => boolean;
+  statBonuses?: Record<string, number>;
 }
 
 const SectionContainer = styled.div`
@@ -122,15 +134,80 @@ const LoadingMessage = styled.div`
   color: ${props => props.theme.colors.text.muted};
 `;
 
+const StatBonusesContainer = styled.div`
+  background: ${props => props.theme.colors.surface.dark};
+  border: 1px solid ${props => props.theme.colors.surface.border};
+  border-radius: ${props => props.theme.borderRadius.medium};
+  padding: ${props => props.theme.spacing.lg};
+  margin-top: ${props => props.theme.spacing.lg};
+`;
+
+const StatBonusesTitle = styled.h4`
+  margin: 0 0 ${props => props.theme.spacing.md} 0;
+  font-size: 1.1rem;
+  color: ${props => props.theme.colors.text.primary};
+  display: flex;
+  align-items: center;
+  gap: ${props => props.theme.spacing.sm};
+  
+  &::before {
+    content: '📈';
+    font-size: 1.2rem;
+  }
+`;
+
+const StatBonusesGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: ${props => props.theme.spacing.sm};
+`;
+
+const StatBonusItem = styled.div<{ $value: number }>`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: ${props => props.theme.spacing.sm};
+  background: ${props => props.$value > 0 
+    ? 'rgba(16, 185, 129, 0.1)' 
+    : 'rgba(107, 114, 128, 0.1)'};
+  border: 1px solid ${props => props.$value > 0 
+    ? 'rgba(16, 185, 129, 0.2)' 
+    : 'rgba(107, 114, 128, 0.2)'};
+  border-radius: ${props => props.theme.borderRadius.medium};
+  
+  .stat-name {
+    font-weight: 600;
+    color: ${props => props.theme.colors.text.primary};
+    text-transform: capitalize;
+    font-size: 0.9rem;
+  }
+  
+  .stat-value {
+    font-weight: bold;
+    color: ${props => props.$value > 0 
+      ? props.theme.colors.status.success 
+      : props.theme.colors.text.muted};
+    font-size: 0.9rem;
+    
+    &::before {
+      content: '+';
+      color: ${props => props.$value > 0 
+        ? props.theme.colors.status.success 
+        : 'transparent'};
+    }
+  }
+`;
+
 export default function AbilitiesSection({
   abilities,
   activeCategory,
   isLoading,
   onCategoryChange,
   onAbilityClick,
-  isRecentlyUsed
+  isRecentlyUsed,
+  statBonuses = {}
 }: AbilitiesSectionProps) {
-  const categories = ['all', 'basic', 'skill', 'ultimate'] as const;
+  const categories = ['all', 'basic', 'skill', 'ultimate', 'bonuses'] as const;
 
   const filteredAbilities = activeCategory === 'all' 
     ? abilities 
@@ -143,6 +220,21 @@ export default function AbilitiesSection({
         ultimate: abilities.filter(a => a.category === 'ultimate'),
       }
     : {};
+
+  const statLabels: Record<string, string> = {
+    attack_damage: 'Attack Damage',
+    health: 'Max Health',
+    mana: 'Max Mana',
+    armor: 'Armor',
+    magic_resist: 'Magic Resist',
+    mana_regen: 'Mana Regen',
+    crit_chance: 'Crit Chance',
+    crit_damage: 'Crit Damage',
+    attack_speed: 'Attack Speed',
+    movement_speed: 'Movement Speed'
+  };
+
+  const activeBonuses = Object.entries(statBonuses).filter(([, value]) => value > 0);
 
   return (
     <SectionContainer>
@@ -162,22 +254,59 @@ export default function AbilitiesSection({
 
       {isLoading ? (
         <LoadingMessage>Loading abilities...</LoadingMessage>
+      ) : activeCategory === 'bonuses' ? (
+        <CategorySection>
+          <CategoryHeader>Skill Bonuses</CategoryHeader>
+          {activeBonuses.length > 0 ? (
+            <StatBonusesContainer>
+              <StatBonusesTitle>Active Bonuses from Skills</StatBonusesTitle>
+              <StatBonusesGrid>
+                {activeBonuses.map(([stat, value]) => (
+                  <StatBonusItem key={stat} $value={value}>
+                    <span className="stat-name">{statLabels[stat] || stat}</span>
+                    <span className="stat-value">{value}</span>
+                  </StatBonusItem>
+                ))}
+              </StatBonusesGrid>
+            </StatBonusesContainer>
+          ) : (
+            <LoadingMessage>No skill bonuses active</LoadingMessage>
+          )}
+        </CategorySection>
       ) : activeCategory === 'all' ? (
-        Object.entries(groupedAbilities).map(([category, categoryAbilities]) => (
-          <CategorySection key={category}>
-            <CategoryHeader>{category.charAt(0).toUpperCase() + category.slice(1)} Actions</CategoryHeader>
-            <AbilitiesGrid>
-              {categoryAbilities.map((ability: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
-                <AbilityCard
-                  key={ability.id}
-                  ability={ability}
-                  isRecentlyUsed={isRecentlyUsed(ability.id)}
-                  onClick={() => onAbilityClick(ability)}
-                />
-              ))}
-            </AbilitiesGrid>
-          </CategorySection>
-        ))
+        <>
+          {Object.entries(groupedAbilities).map(([category, categoryAbilities]) => (
+            <CategorySection key={category}>
+              <CategoryHeader>{category.charAt(0).toUpperCase() + category.slice(1)} Actions</CategoryHeader>
+              <AbilitiesGrid>
+                {categoryAbilities.map((ability: any) => ( // eslint-disable-line @typescript-eslint/no-explicit-any
+                  <AbilityCard
+                    key={ability.id}
+                    ability={ability}
+                    isRecentlyUsed={isRecentlyUsed(ability.id)}
+                    onClick={() => onAbilityClick(ability)}
+                  />
+                ))}
+              </AbilitiesGrid>
+            </CategorySection>
+          ))}
+          {activeBonuses.length > 0 && (
+            <CategorySection>
+              <CategoryHeader>Skill Bonuses</CategoryHeader>
+              <StatBonusesContainer>
+                <StatBonusesTitle>Active Bonuses from Skills</StatBonusesTitle>
+                <StatBonusesGrid>
+                  {activeBonuses.map(([stat, value]) => (
+                    <StatBonusItem key={stat} $value={value}>
+                      <span className="stat-name">{statLabels[stat] || stat}</span>
+                      <span className="stat-value">{value}</span>
+                    </StatBonusItem>
+                  ))}
+                </StatBonusesGrid>
+              </StatBonusesContainer>
+            </CategorySection>
+          )}
+        </>
       ) : (
         <AbilitiesGrid>
           {filteredAbilities.map(ability => (
